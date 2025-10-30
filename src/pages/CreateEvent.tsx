@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,6 +13,8 @@ import { Calendar, MapPin, Users, Image as ImageIcon } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
+import type { Session } from "@supabase/supabase-js";
 
 const formSchema = z.object({
   title: z
@@ -46,6 +48,31 @@ type FormValues = z.infer<typeof formSchema>;
 const CreateEvent = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
+  const [isSessionLoading, setIsSessionLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!isMounted) return;
+      setSession(data.session);
+      setIsSessionLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      if (!isMounted) return;
+      setSession(newSession);
+      setIsSessionLoading(false);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const {
     register,
@@ -66,11 +93,45 @@ const CreateEvent = () => {
     },
   });
 
+  const deriveOrganizerDetails = (activeSession: Session) => {
+    const metadata = activeSession.user.user_metadata as Record<string, unknown>;
+    const metadataName = ["full_name", "fullName", "name"]
+      .map((key) => metadata[key])
+      .find((value): value is string => typeof value === "string" && value.trim().length > 0);
+
+    const fallbackName = activeSession.user.email ?? "Community Host";
+    const organizerName = metadataName?.trim() ?? fallbackName;
+
+    const initials = organizerName
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part[0]?.toUpperCase() ?? "")
+      .join("")
+      .slice(0, 2);
+
+    return {
+      organizerName,
+      organizerInitials: initials || "CH",
+    };
+  };
+
   const onSubmit = async (values: FormValues) => {
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase.from("events").insert({
+      const {
+        data: { session: activeSession },
+      } = await supabase.auth.getSession();
+
+      if (!activeSession) {
+        toast.error("Please sign in to create an event.");
+        navigate("/auth");
+        return;
+      }
+
+      const { organizerName, organizerInitials } = deriveOrganizerDetails(activeSession);
+
+      const payload: TablesInsert<"events"> = {
         title: values.title,
         description: values.description,
         category: values.category,
@@ -78,14 +139,20 @@ const CreateEvent = () => {
         time: values.time,
         location: values.location,
         max_attendees: values.maxAttendees,
-        attendees_count: 0,
-        organizer_name: "Community Host",
-        organizer_initials: "CH",
-      });
+        organizer_id: activeSession.user.id,
+        organizer_name: organizerName,
+        organizer_initials: organizerInitials,
+      };
+
+      const { error } = await supabase.from("events").insert([payload]);
 
       if (error) {
         console.error("Failed to create event", error);
-        toast.error("Unable to create the event. Please try again.");
+        const friendlyMessage =
+          error.code === "42P01"
+            ? "Events storage has not been set up yet. Please run the Supabase migrations and try again."
+            : error.message || "Unable to create the event. Please try again.";
+        toast.error(friendlyMessage);
         return;
       }
 
@@ -109,6 +176,12 @@ const CreateEvent = () => {
           <h1 className="text-4xl font-bold mb-2">Create New Event</h1>
           <p className="text-muted-foreground">Share your activity with the community</p>
         </div>
+
+        {!isSessionLoading && !session && (
+          <div className="mb-6 rounded-lg border border-dashed border-muted p-4 text-sm text-muted-foreground">
+            You need to be signed in to create an event. Please sign in or create an account first.
+          </div>
+        )}
 
         <Card className="animate-fade-in shadow-soft">
           <CardHeader>

@@ -7,17 +7,32 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MapPin } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const Auth = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [signInEmail, setSignInEmail] = useState("");
+  const [signInPassword, setSignInPassword] = useState("");
+  const [signUpName, setSignUpName] = useState("");
+  const [signUpEmail, setSignUpEmail] = useState("");
+  const [signUpPassword, setSignUpPassword] = useState("");
+  const [signUpConfirm, setSignUpConfirm] = useState("");
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: signInEmail,
+      password: signInPassword,
+    });
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    if (error) {
+      console.error("Failed to sign in", error);
+      toast.error(error.message || "Unable to sign in. Please try again.");
+      setIsLoading(false);
+      return;
+    }
 
     toast.success("Welcome back!");
     setIsLoading(false);
@@ -28,12 +43,40 @@ const Auth = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    if (signUpPassword !== signUpConfirm) {
+      toast.error("Passwords do not match.");
+      setIsLoading(false);
+      return;
+    }
 
-    toast.success("Account created successfully!");
+    const { data, error } = await supabase.auth.signUp({
+      email: signUpEmail,
+      password: signUpPassword,
+      options: {
+        data: {
+          full_name: signUpName,
+        },
+      },
+    });
+
+    if (error) {
+      console.error("Failed to sign up", error);
+      toast.error(error.message || "Unable to create an account. Please try again.");
+      setIsLoading(false);
+      return;
+    }
+
+    const hasSession = Boolean(data.session);
+    toast.success(
+      hasSession
+        ? "Account created successfully!"
+        : "Account created! Please check your email to confirm your address.",
+    );
     setIsLoading(false);
-    navigate("/events");
+
+    if (hasSession) {
+      navigate("/events");
+    }
   };
 
   return (
@@ -68,16 +111,20 @@ const Auth = () => {
                       id="signin-email"
                       type="email"
                       placeholder="your@email.com"
+                      value={signInEmail}
+                      onChange={(event) => setSignInEmail(event.target.value)}
                       required
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="signin-password">Password</Label>
                     <Input
                       id="signin-password"
                       type="password"
                       placeholder="••••••••"
+                      value={signInPassword}
+                      onChange={(event) => setSignInPassword(event.target.value)}
                       required
                     />
                   </div>
@@ -101,6 +148,8 @@ const Auth = () => {
                       id="signup-name"
                       type="text"
                       placeholder="John Doe"
+                      value={signUpName}
+                      onChange={(event) => setSignUpName(event.target.value)}
                       required
                     />
                   </div>
@@ -111,16 +160,20 @@ const Auth = () => {
                       id="signup-email"
                       type="email"
                       placeholder="your@email.com"
+                      value={signUpEmail}
+                      onChange={(event) => setSignUpEmail(event.target.value)}
                       required
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="signup-password">Password</Label>
                     <Input
                       id="signup-password"
                       type="password"
                       placeholder="••••••••"
+                      value={signUpPassword}
+                      onChange={(event) => setSignUpPassword(event.target.value)}
                       required
                       minLength={6}
                     />
@@ -132,6 +185,8 @@ const Auth = () => {
                       id="signup-confirm"
                       type="password"
                       placeholder="••••••••"
+                      value={signUpConfirm}
+                      onChange={(event) => setSignUpConfirm(event.target.value)}
                       required
                       minLength={6}
                     />
