@@ -17,51 +17,54 @@ export type Database = {
       events: {
         Row: {
           id: string
-          title: string | null
-          description: string | null
-          category: string | null
-          date: string | null
-          time: string | null
-          location: string | null
-          max_attendees: number | null
-          attendees_count: number | null
+          title: string
+          description: string
+          category: string
+          date: string
+          time: string
+          location: string
+          max_attendees: number
+          attendees_count: number
           image_url: string | null
-          organizer_name: string | null
-          organizer_initials: string | null
-          created_at: string | null
-          updated_at: string | null
+          organizer_id: string
+          organizer_name: string
+          organizer_initials: string
+          created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
-          title?: string | null
-          description?: string | null
-          category?: string | null
-          date?: string | null
-          time?: string | null
-          location?: string | null
-          max_attendees?: number | null
-          attendees_count?: number | null
+          title: string
+          description: string
+          category: string
+          date: string
+          time: string
+          location: string
+          max_attendees: number
+          attendees_count?: number
           image_url?: string | null
-          organizer_name?: string | null
-          organizer_initials?: string | null
-          created_at?: string | null
-          updated_at?: string | null
+          organizer_id: string
+          organizer_name: string
+          organizer_initials: string
+          created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
-          title?: string | null
-          description?: string | null
-          category?: string | null
-          date?: string | null
-          time?: string | null
-          location?: string | null
-          max_attendees?: number | null
-          attendees_count?: number | null
+          title?: string
+          description?: string
+          category?: string
+          date?: string
+          time?: string
+          location?: string
+          max_attendees?: number
+          attendees_count?: number
           image_url?: string | null
-          organizer_name?: string | null
-          organizer_initials?: string | null
-          created_at?: string | null
-          updated_at?: string | null
+          organizer_id?: string
+          organizer_name?: string
+          organizer_initials?: string
+          created_at?: string
+          updated_at?: string
         }
         Relationships: []
       }

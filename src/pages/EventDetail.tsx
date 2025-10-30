@@ -25,6 +25,7 @@ type EventRecord = {
   image?: string | null;
   organizer_name?: string | null;
   organizer_initials?: string | null;
+  organizer_id?: string | null;
 };
 
 const placeholderHeroImage =
@@ -54,8 +55,16 @@ const EventDetail = () => {
 
       if (error) {
         console.error("Failed to load event", error);
-        toast.error("Unable to load this event right now.");
-        setLoadError("We couldn't load this event. Please try again later.");
+        const friendlyMessage =
+          error.code === "42P01"
+            ? "Events storage has not been set up yet. Please run the Supabase migrations."
+            : "Unable to load this event right now.";
+        toast.error(friendlyMessage);
+        setLoadError(
+          error.code === "42P01"
+            ? "Events storage has not been initialised. Please apply the latest Supabase migrations and try again."
+            : "We couldn't load this event. Please try again later.",
+        );
         setIsLoading(false);
         return;
       }

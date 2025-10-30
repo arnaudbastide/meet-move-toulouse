@@ -23,6 +23,9 @@ type EventRecord = {
   attendees?: number | null;
   image_url?: string | null;
   image?: string | null;
+  organizer_id?: string | null;
+  organizer_name?: string | null;
+  organizer_initials?: string | null;
 };
 
 type CategoryOption = {
@@ -46,7 +49,11 @@ const Events = () => {
 
       if (error) {
         console.error("Failed to fetch events", error);
-        toast.error("Unable to load events right now. Please try again later.");
+        const friendlyMessage =
+          error.code === "42P01"
+            ? "Events storage has not been set up yet. Please run the Supabase migrations."
+            : "Unable to load events right now. Please try again later.";
+        toast.error(friendlyMessage);
         setIsLoading(false);
         return;
       }
