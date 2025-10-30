@@ -6,32 +6,43 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { MapPin, Calendar, Users, Clock, ArrowLeft } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { toast } from "sonner";
+import { useEvents } from "@/contexts/EventsContext";
 
 const EventDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { events } = useEvents();
+  const event = events.find((item) => item.id === id);
 
-  // Mock event data
-  const event = {
-    id: 1,
-    title: "Yoga at Jardin des Plantes",
-    category: "Sports",
-    date: "2025-11-02",
-    time: "18:00",
-    location: "Jardin des Plantes, Toulouse",
-    description: "Join us for a relaxing outdoor yoga session in one of Toulouse's most beautiful gardens. All levels welcome! Bring your own mat and water.",
-    attendees: 8,
-    maxAttendees: 15,
-    image: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=1200&h=600&fit=crop",
-    organizer: {
-      name: "Sophie Martin",
-      initials: "SM",
-    },
-  };
+  const fallbackImage = "https://images.unsplash.com/photo-1545239351-1141bd82e8a6?w=1200&h=600&fit=crop";
+
+  const organizerName = event?.organizer?.name ?? "Community Organizer";
+  const organizerInitials = event?.organizer?.initials
+    ?? organizerName
+      .split(" ")
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
 
   const handleBooking = () => {
     toast.success("Spot reserved! Check your email for details.");
   };
+
+  if (!event) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <main className="container mx-auto px-4 py-16 max-w-3xl text-center space-y-6">
+          <h1 className="text-3xl font-bold">Event not found</h1>
+          <p className="text-muted-foreground">
+            The event you are looking for may have been removed or is no longer available.
+          </p>
+          <Button onClick={() => navigate("/events")}>Back to Events</Button>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -51,7 +62,7 @@ const EventDetail = () => {
           {/* Hero Image */}
           <div className="relative h-96 rounded-xl overflow-hidden shadow-elevated">
             <img
-              src={event.image}
+              src={event.image || fallbackImage}
               alt={event.title}
               className="w-full h-full object-cover"
             />
@@ -69,7 +80,7 @@ const EventDetail = () => {
                 <CardContent className="pt-6">
                   <h2 className="text-2xl font-semibold mb-4">About This Event</h2>
                   <p className="text-muted-foreground leading-relaxed">
-                    {event.description}
+                    {event.description || "Details for this event will be shared soon."}
                   </p>
                 </CardContent>
               </Card>
@@ -126,12 +137,12 @@ const EventDetail = () => {
                   <div className="flex items-center gap-3 pb-4 border-b">
                     <Avatar>
                       <AvatarFallback className="bg-primary text-primary-foreground">
-                        {event.organizer.initials}
+                        {organizerInitials}
                       </AvatarFallback>
                     </Avatar>
                     <div>
                       <p className="text-sm text-muted-foreground">Organized by</p>
-                      <p className="font-medium">{event.organizer.name}</p>
+                      <p className="font-medium">{organizerName}</p>
                     </div>
                   </div>
 

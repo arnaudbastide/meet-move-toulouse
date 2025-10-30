@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,62 +6,31 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { MapPin, Calendar, Users, Search } from "lucide-react";
 import Navbar from "@/components/Navbar";
+import { useEvents } from "@/contexts/EventsContext";
 
-// Mock data for events
-const mockEvents = [
-  {
-    id: 1,
-    title: "Yoga at Jardin des Plantes",
-    category: "Sports",
-    date: "2025-11-02",
-    time: "18:00",
-    location: "Jardin des Plantes, Toulouse",
-    attendees: 8,
-    maxAttendees: 15,
-    image: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=800&h=400&fit=crop",
-  },
-  {
-    id: 2,
-    title: "French Conversation Meetup",
-    category: "Language",
-    date: "2025-11-03",
-    time: "19:30",
-    location: "Café Le Bibent, Toulouse",
-    attendees: 12,
-    maxAttendees: 20,
-    image: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800&h=400&fit=crop",
-  },
-  {
-    id: 3,
-    title: "Photography Walk",
-    category: "Arts",
-    date: "2025-11-04",
-    time: "14:00",
-    location: "Canal du Midi, Toulouse",
-    attendees: 5,
-    maxAttendees: 10,
-    image: "https://images.unsplash.com/photo-1452587925148-ce544e77e70d?w=800&h=400&fit=crop",
-  },
-  {
-    id: 4,
-    title: "Beach Volleyball",
-    category: "Sports",
-    date: "2025-11-05",
-    time: "17:00",
-    location: "Toulouse Plage",
-    attendees: 16,
-    maxAttendees: 20,
-    image: "https://images.unsplash.com/photo-1612872087720-bb876e2e67d1?w=800&h=400&fit=crop",
-  },
-];
+const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1545239351-1141bd82e8a6?w=800&h=400&fit=crop";
 
 const Events = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const { events } = useEvents();
 
-  const categories = ["All", "Sports", "Language", "Arts", "Food", "Music"];
+  const categories = useMemo(() => {
+    const uniqueCategories = Array.from(new Set(events.map((event) => event.category)));
+    return ["All", ...uniqueCategories];
+  }, [events]);
 
-  const filteredEvents = mockEvents.filter((event) => {
+  useEffect(() => {
+    if (
+      selectedCategory &&
+      selectedCategory !== "All" &&
+      !events.some((event) => event.category === selectedCategory)
+    ) {
+      setSelectedCategory(null);
+    }
+  }, [events, selectedCategory]);
+
+  const filteredEvents = events.filter((event) => {
     const matchesSearch = event.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = !selectedCategory || selectedCategory === "All" || event.category === selectedCategory;
     return matchesSearch && matchesCategory;
@@ -114,7 +83,7 @@ const Events = () => {
               <CardHeader className="p-0">
                 <div className="relative h-48 overflow-hidden">
                   <img
-                    src={event.image}
+                    src={event.image || FALLBACK_IMAGE}
                     alt={event.title}
                     className="w-full h-full object-cover transition-transform duration-300 hover:scale-110"
                   />
