@@ -114,13 +114,20 @@ const CreateEvent = () => {
     };
   };
 
+  const getActiveSession = async (): Promise<Session | null> => {
+    if (session) {
+      return session;
+    }
+
+    const { data } = await supabase.auth.getSession();
+    return data.session;
+  };
+
   const onSubmit = async (values: FormValues) => {
     setIsSubmitting(true);
 
     try {
-      const {
-        data: { session: activeSession },
-      } = await supabase.auth.getSession();
+      const activeSession = await getActiveSession();
 
       if (!activeSession) {
         toast.error("Please sign in to create an event.");
@@ -139,6 +146,7 @@ const CreateEvent = () => {
         location: values.location,
         max_attendees: values.maxAttendees,
         attendees_count: 0,
+        organizer_id: activeSession.user.id,
         organizer_name: organizerName,
         organizer_initials: organizerInitials,
       });
