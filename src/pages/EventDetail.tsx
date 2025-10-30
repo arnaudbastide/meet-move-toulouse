@@ -8,25 +8,8 @@ import { MapPin, Calendar, Users, Clock, ArrowLeft } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-
-type EventRecord = {
-  id: string;
-  title: string | null;
-  description: string | null;
-  category: string | null;
-  date: string | null;
-  time: string | null;
-  location: string | null;
-  max_attendees: number | null;
-  maxAttendees?: number | null;
-  attendees_count?: number | null;
-  attendees?: number | null;
-  image_url?: string | null;
-  image?: string | null;
-  organizer_name?: string | null;
-  organizer_initials?: string | null;
-  organizer_id?: string | null;
-};
+import type { EventRecord } from "@/types/events";
+import { getLocalEventById } from "@/lib/local-events";
 
 const placeholderHeroImage =
   "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1200&q=80";
@@ -55,16 +38,30 @@ const EventDetail = () => {
 
       if (error) {
         console.error("Failed to load event", error);
-        const friendlyMessage =
-          error.code === "42P01"
-            ? "Events storage has not been set up yet. Please run the Supabase migrations."
-            : "Unable to load this event right now.";
-        toast.error(friendlyMessage);
-        setLoadError(
-          error.code === "42P01"
-            ? "Events storage has not been initialised. Please apply the latest Supabase migrations and try again."
-            : "We couldn't load this event. Please try again later.",
-        );
+
+        if (error.code === "42P01") {
+          const fallbackEvent = getLocalEventById(id);
+
+          if (fallbackEvent) {
+            setEvent(fallbackEvent);
+            setLoadError(null);
+            toast.info(
+              "Events storage has not been set up yet. Showing a locally cached version until Supabase migrations run.",
+            );
+            setIsLoading(false);
+            return;
+          }
+
+          toast.error("Events storage has not been initialised. Please apply the Supabase migrations.");
+          setLoadError(
+            "Events storage has not been initialised. Please apply the latest Supabase migrations and try again.",
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        toast.error("Unable to load this event right now.");
+        setLoadError("We couldn't load this event. Please try again later.");
         setIsLoading(false);
         return;
       }

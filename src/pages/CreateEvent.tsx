@@ -14,6 +14,8 @@ import Navbar from "@/components/Navbar";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session } from "@supabase/supabase-js";
+import type { EventRecord } from "@/types/events";
+import { addLocalEvent } from "@/lib/local-events";
 
 const formSchema = z.object({
   title: z
@@ -43,6 +45,14 @@ const formSchema = z.object({
 });
 
 type FormValues = z.infer<typeof formSchema>;
+
+const generateEventId = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `event-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
 
 const CreateEvent = () => {
   const navigate = useNavigate();
@@ -137,24 +147,65 @@ const CreateEvent = () => {
 
       const { organizerName, organizerInitials } = deriveOrganizerDetails(activeSession);
 
-      const { error } = await supabase.from("events").insert({
-        title: values.title,
-        description: values.description,
-        category: values.category,
-        date: values.date,
-        time: values.time,
-        location: values.location,
-        max_attendees: values.maxAttendees,
-        attendees_count: 0,
-        organizer_id: activeSession.user.id,
-        organizer_name: organizerName,
-        organizer_initials: organizerInitials,
-      });
+      const { data, error } = await supabase
+        .from("events")
+        .insert({
+          title: values.title,
+          description: values.description,
+          category: values.category,
+          date: values.date,
+          time: values.time,
+          location: values.location,
+          max_attendees: values.maxAttendees,
+          attendees_count: 0,
+          organizer_id: activeSession.user.id,
+          organizer_name: organizerName,
+          organizer_initials: organizerInitials,
+        })
+        .select()
+        .maybeSingle();
 
       if (error) {
         console.error("Failed to create event", error);
+
+        if (error.code === "42P01") {
+          const fallbackEvent: EventRecord = {
+            id: generateEventId(),
+            title: values.title,
+            description: values.description,
+            category: values.category,
+            date: values.date,
+            time: values.time,
+            location: values.location,
+            max_attendees: values.maxAttendees,
+            attendees_count: 0,
+            image_url: null,
+            organizer_id: activeSession.user.id,
+            organizer_name: organizerName,
+            organizer_initials: organizerInitials,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+
+          addLocalEvent(fallbackEvent);
+          toast.success(
+            "Supabase isn't ready yet, but we've saved your event locally. It will appear in the list on this device.",
+          );
+          reset();
+          navigate("/events");
+          return;
+        }
+
         toast.error(error.message || "Unable to create the event. Please try again.");
         return;
+      }
+
+      if (data) {
+        addLocalEvent({
+          ...data,
+          created_at: data.created_at ?? new Date().toISOString(),
+          updated_at: data.updated_at ?? new Date().toISOString(),
+        });
       }
 
       toast.success("Event created successfully!");
