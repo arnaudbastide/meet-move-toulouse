@@ -13,7 +13,7 @@ const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1545239351-1141bd82e8a
 const Events = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const { events } = useEvents();
+  const { events, isEventReserved } = useEvents();
 
   const categories = useMemo(() => {
     const uniqueCategories = Array.from(new Set(events.map((event) => event.category)));
@@ -74,7 +74,10 @@ const Events = () => {
 
         {/* Events Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredEvents.map((event, index) => (
+          {filteredEvents.map((event, index) => {
+            const reserved = isEventReserved(event.id);
+
+            return (
             <Card
               key={event.id}
               className="overflow-hidden hover:shadow-elevated transition-all duration-300 hover:-translate-y-1 animate-fade-in"
@@ -87,6 +90,11 @@ const Events = () => {
                     alt={event.title}
                     className="w-full h-full object-cover transition-transform duration-300 hover:scale-110"
                   />
+                  {reserved && (
+                    <Badge className="absolute top-3 left-3 bg-emerald-500 text-white shadow-md">
+                      Reserved
+                    </Badge>
+                  )}
                   <Badge className="absolute top-3 right-3 bg-background/90 backdrop-blur">
                     {event.category}
                   </Badge>
@@ -121,12 +129,13 @@ const Events = () => {
               <CardFooter className="p-5 pt-0">
                 <Link to={`/events/${event.id}`} className="w-full">
                   <Button className="w-full" variant="default">
-                    View Details
+                    {reserved ? "View & Manage" : "View Details"}
                   </Button>
                 </Link>
               </CardFooter>
             </Card>
-          ))}
+            );
+          })}
         </div>
 
         {filteredEvents.length === 0 && (

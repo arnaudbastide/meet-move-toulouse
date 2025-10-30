@@ -96,8 +96,14 @@ const DEFAULT_EVENTS: Event[] = [
 ];
 
 const STORAGE_KEY = "meet-move-toulouse:events";
+const RESERVATIONS_STORAGE_KEY = "meet-move-toulouse:reservations";
 
 type ReserveSpotResult = {
+  success: boolean;
+  event?: Event;
+};
+
+type CancelReservationResult = {
   success: boolean;
   event?: Event;
 };
@@ -106,6 +112,10 @@ type EventsContextValue = {
   events: Event[];
   addEvent: (event: CreateEventInput) => Event;
   reserveSpot: (eventId: string) => ReserveSpotResult;
+  cancelReservation: (eventId: string) => CancelReservationResult;
+  reservedEventIds: string[];
+  reservedEvents: Event[];
+  isEventReserved: (eventId: string) => boolean;
 };
 
 const EventsContext = createContext<EventsContextValue | undefined>(undefined);
@@ -144,8 +154,31 @@ const getInitialEvents = (): Event[] => {
   return DEFAULT_EVENTS;
 };
 
+const getInitialReservations = (): string[] => {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const storedReservations = window.localStorage.getItem(RESERVATIONS_STORAGE_KEY);
+    if (!storedReservations) {
+      return [];
+    }
+
+    const parsed = JSON.parse(storedReservations) as string[];
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+  } catch (error) {
+    console.error("Failed to read reservations from localStorage", error);
+  }
+
+  return [];
+};
+
 export const EventsProvider = ({ children }: { children: React.ReactNode }) => {
   const [events, setEvents] = useState<Event[]>(getInitialEvents);
+  const [reservedEventIds, setReservedEventIds] = useState<string[]>(getInitialReservations);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -158,6 +191,18 @@ export const EventsProvider = ({ children }: { children: React.ReactNode }) => {
       console.error("Failed to store events in localStorage", error);
     }
   }, [events]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(RESERVATIONS_STORAGE_KEY, JSON.stringify(reservedEventIds));
+    } catch (error) {
+      console.error("Failed to store reservations in localStorage", error);
+    }
+  }, [reservedEventIds]);
 
   const addEvent = useCallback((event: CreateEventInput): Event => {
     const newEvent: Event = {
@@ -174,6 +219,11 @@ export const EventsProvider = ({ children }: { children: React.ReactNode }) => {
 
   const reserveSpot = useCallback(
     (eventId: string): ReserveSpotResult => {
+      if (reservedEventIds.includes(eventId)) {
+        const existingEvent = events.find((event) => event.id === eventId);
+        return { success: false, event: existingEvent };
+      }
+
       let updatedEvent: Event | undefined;
       let wasUpdated = false;
 
@@ -195,9 +245,60 @@ export const EventsProvider = ({ children }: { children: React.ReactNode }) => {
         })
       );
 
+      if (wasUpdated) {
+        setReservedEventIds((prev) => [...prev, eventId]);
+      }
+
       return { success: wasUpdated, event: updatedEvent };
     },
-    []
+    [events, reservedEventIds]
+  );
+
+  const cancelReservation = useCallback(
+    (eventId: string): CancelReservationResult => {
+      if (!reservedEventIds.includes(eventId)) {
+        const existingEvent = events.find((event) => event.id === eventId);
+        return { success: false, event: existingEvent };
+      }
+
+      let updatedEvent: Event | undefined;
+      let wasUpdated = false;
+
+      setEvents((prev) =>
+        prev.map((event) => {
+          if (event.id !== eventId) {
+            return event;
+          }
+
+          if (event.attendees <= 0) {
+            updatedEvent = event;
+            return event;
+          }
+
+          const decremented = { ...event, attendees: event.attendees - 1 };
+          updatedEvent = decremented;
+          wasUpdated = true;
+          return decremented;
+        })
+      );
+
+      if (wasUpdated) {
+        setReservedEventIds((prev) => prev.filter((id) => id !== eventId));
+      }
+
+      return { success: wasUpdated, event: updatedEvent };
+    },
+    [events, reservedEventIds]
+  );
+
+  const isEventReserved = useCallback(
+    (eventId: string) => reservedEventIds.includes(eventId),
+    [reservedEventIds]
+  );
+
+  const reservedEvents = useMemo(
+    () => events.filter((event) => reservedEventIds.includes(event.id)),
+    [events, reservedEventIds]
   );
 
   const value = useMemo(
@@ -205,8 +306,12 @@ export const EventsProvider = ({ children }: { children: React.ReactNode }) => {
       events,
       addEvent,
       reserveSpot,
+      cancelReservation,
+      reservedEventIds,
+      reservedEvents,
+      isEventReserved,
     }),
-    [events, addEvent, reserveSpot]
+    [events, addEvent, reserveSpot, cancelReservation, reservedEventIds, reservedEvents, isEventReserved]
   );
 
   return <EventsContext.Provider value={value}>{children}</EventsContext.Provider>;
