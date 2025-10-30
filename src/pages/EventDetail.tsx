@@ -11,7 +11,7 @@ import { useEvents } from "@/contexts/EventsContext";
 const EventDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { events } = useEvents();
+  const { events, reserveSpot } = useEvents();
   const event = events.find((item) => item.id === id);
 
   const fallbackImage = "https://images.unsplash.com/photo-1545239351-1141bd82e8a6?w=1200&h=600&fit=crop";
@@ -26,6 +26,23 @@ const EventDetail = () => {
       .toUpperCase();
 
   const handleBooking = () => {
+    if (!event) {
+      toast.error("Unable to find this event.");
+      return;
+    }
+
+    const result = reserveSpot(event.id);
+
+    if (!result.event) {
+      toast.error("Something went wrong while reserving your spot.");
+      return;
+    }
+
+    if (!result.success) {
+      toast.error("Sorry, this event is fully booked.");
+      return;
+    }
+
     toast.success("Spot reserved! Check your email for details.");
   };
 

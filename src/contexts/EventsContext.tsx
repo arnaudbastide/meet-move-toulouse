@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 export type Event = {
   id: string;
@@ -97,9 +97,15 @@ const DEFAULT_EVENTS: Event[] = [
 
 const STORAGE_KEY = "meet-move-toulouse:events";
 
+type ReserveSpotResult = {
+  success: boolean;
+  event?: Event;
+};
+
 type EventsContextValue = {
   events: Event[];
   addEvent: (event: CreateEventInput) => Event;
+  reserveSpot: (eventId: string) => ReserveSpotResult;
 };
 
 const EventsContext = createContext<EventsContextValue | undefined>(undefined);
@@ -153,7 +159,7 @@ export const EventsProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [events]);
 
-  const addEvent = (event: CreateEventInput): Event => {
+  const addEvent = useCallback((event: CreateEventInput): Event => {
     const newEvent: Event = {
       ...event,
       id: event.id ?? generateEventId(),
@@ -164,14 +170,43 @@ export const EventsProvider = ({ children }: { children: React.ReactNode }) => {
     setEvents((prev) => [newEvent, ...prev]);
 
     return newEvent;
-  };
+  }, []);
+
+  const reserveSpot = useCallback(
+    (eventId: string): ReserveSpotResult => {
+      let updatedEvent: Event | undefined;
+      let wasUpdated = false;
+
+      setEvents((prev) =>
+        prev.map((event) => {
+          if (event.id !== eventId) {
+            return event;
+          }
+
+          if (event.attendees >= event.maxAttendees) {
+            updatedEvent = event;
+            return event;
+          }
+
+          const incremented = { ...event, attendees: event.attendees + 1 };
+          updatedEvent = incremented;
+          wasUpdated = true;
+          return incremented;
+        })
+      );
+
+      return { success: wasUpdated, event: updatedEvent };
+    },
+    []
+  );
 
   const value = useMemo(
     () => ({
       events,
       addEvent,
+      reserveSpot,
     }),
-    [events]
+    [events, addEvent, reserveSpot]
   );
 
   return <EventsContext.Provider value={value}>{children}</EventsContext.Provider>;
