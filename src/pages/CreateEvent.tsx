@@ -145,7 +145,7 @@ const CreateEvent = () => {
 
       if (error) {
         console.error("Failed to create event", error);
-        toast.error("Unable to create the event. Please try again.");
+        toast.error(error.message || "Unable to create the event. Please try again.");
         return;
       }
 
