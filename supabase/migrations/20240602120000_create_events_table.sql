@@ -43,6 +43,3 @@ create policy "Allow authenticated users to create events"
   for insert
   to authenticated
   with check (auth.uid() = organizer_id);
-
--- Ensure PostgREST refreshes its schema cache so the newly created table is immediately available
-notify pgrst, 'reload schema';

@@ -13,7 +13,6 @@ import { Calendar, MapPin, Users, Image as ImageIcon } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import type { TablesInsert } from "@/integrations/supabase/types";
 import type { Session } from "@supabase/supabase-js";
 
 const formSchema = z.object({
@@ -131,7 +130,7 @@ const CreateEvent = () => {
 
       const { organizerName, organizerInitials } = deriveOrganizerDetails(activeSession);
 
-      const payload: TablesInsert<"events"> = {
+      const { error } = await supabase.from("events").insert({
         title: values.title,
         description: values.description,
         category: values.category,
@@ -139,20 +138,14 @@ const CreateEvent = () => {
         time: values.time,
         location: values.location,
         max_attendees: values.maxAttendees,
-        organizer_id: activeSession.user.id,
+        attendees_count: 0,
         organizer_name: organizerName,
         organizer_initials: organizerInitials,
-      };
-
-      const { error } = await supabase.from("events").insert([payload]);
+      });
 
       if (error) {
         console.error("Failed to create event", error);
-        const friendlyMessage =
-          error.code === "42P01"
-            ? "Events storage has not been set up yet. Please run the Supabase migrations and try again."
-            : error.message || "Unable to create the event. Please try again.";
-        toast.error(friendlyMessage);
+        toast.error(error.message || "Unable to create the event. Please try again.");
         return;
       }
 
