@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,27 +12,95 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar, MapPin, Users, Image as ImageIcon } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+
+const formSchema = z.object({
+  title: z
+    .string()
+    .min(1, "Please provide a title for your event"),
+  description: z
+    .string()
+    .min(1, "Please add a short description"),
+  category: z
+    .string({ required_error: "Please select a category" })
+    .min(1, "Please select a category"),
+  date: z
+    .string()
+    .min(1, "Please choose a date"),
+  time: z
+    .string()
+    .min(1, "Please choose a start time"),
+  location: z
+    .string()
+    .min(1, "Please provide a location"),
+  maxAttendees: z
+    .coerce
+    .number({ invalid_type_error: "Please enter a valid number" })
+    .int("Maximum attendees must be a whole number")
+    .min(2, "At least two attendees are required")
+    .max(100, "Maximum attendees cannot exceed 100"),
+});
+
+type FormValues = z.infer<typeof formSchema>;
 
 const CreateEvent = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const {
+    register,
+    control,
+    handleSubmit,
+    formState: { errors },
+    reset,
+  } = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+      category: "",
+      date: "",
+      time: "",
+      location: "",
+      maxAttendees: 10,
+    },
+  });
+
+  const onSubmit = async (values: FormValues) => {
     setIsSubmitting(true);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      const { error } = await supabase.from("events").insert({
+        title: values.title,
+        description: values.description,
+        category: values.category,
+        date: values.date,
+        time: values.time,
+        location: values.location,
+        max_attendees: values.maxAttendees,
+      });
 
-    toast.success("Event created successfully!");
-    setIsSubmitting(false);
-    navigate("/events");
+      if (error) {
+        console.error("Failed to create event", error);
+        toast.error("Unable to create the event. Please try again.");
+        return;
+      }
+
+      toast.success("Event created successfully!");
+      reset();
+      navigate("/events");
+    } catch (error) {
+      console.error("Unexpected error while creating event", error);
+      toast.error("Something went wrong while creating your event.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
+
       <main className="container mx-auto px-4 py-8 max-w-3xl">
         <div className="mb-8 animate-fade-in">
           <h1 className="text-4xl font-bold mb-2">Create New Event</h1>
@@ -41,17 +112,21 @@ const CreateEvent = () => {
             <CardTitle>Event Details</CardTitle>
             <CardDescription>Fill in the information about your event</CardDescription>
           </CardHeader>
-          
+
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               {/* Title */}
               <div className="space-y-2">
                 <Label htmlFor="title">Event Title *</Label>
                 <Input
                   id="title"
                   placeholder="e.g., Morning Yoga Session"
-                  required
+                  disabled={isSubmitting}
+                  {...register("title")}
                 />
+                {errors.title && (
+                  <p className="text-sm text-destructive">{errors.title.message}</p>
+                )}
               </div>
 
               {/* Description */}
@@ -61,26 +136,43 @@ const CreateEvent = () => {
                   id="description"
                   placeholder="Describe your event..."
                   rows={4}
-                  required
+                  disabled={isSubmitting}
+                  {...register("description")}
                 />
+                {errors.description && (
+                  <p className="text-sm text-destructive">{errors.description.message}</p>
+                )}
               </div>
 
               {/* Category */}
               <div className="space-y-2">
                 <Label htmlFor="category">Category *</Label>
-                <Select required>
-                  <SelectTrigger id="category">
-                    <SelectValue placeholder="Select a category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sports">Sports</SelectItem>
-                    <SelectItem value="language">Language</SelectItem>
-                    <SelectItem value="arts">Arts</SelectItem>
-                    <SelectItem value="food">Food</SelectItem>
-                    <SelectItem value="music">Music</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Controller
+                  control={control}
+                  name="category"
+                  render={({ field }) => (
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      disabled={isSubmitting}
+                    >
+                      <SelectTrigger id="category">
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sports">Sports</SelectItem>
+                        <SelectItem value="language">Language</SelectItem>
+                        <SelectItem value="arts">Arts</SelectItem>
+                        <SelectItem value="food">Food</SelectItem>
+                        <SelectItem value="music">Music</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {errors.category && (
+                  <p className="text-sm text-destructive">{errors.category.message}</p>
+                )}
               </div>
 
               {/* Date and Time */}
@@ -93,18 +185,26 @@ const CreateEvent = () => {
                       id="date"
                       type="date"
                       className="pl-10"
-                      required
+                      disabled={isSubmitting}
+                      {...register("date")}
                     />
                   </div>
+                  {errors.date && (
+                    <p className="text-sm text-destructive">{errors.date.message}</p>
+                  )}
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="time">Time *</Label>
                   <Input
                     id="time"
                     type="time"
-                    required
+                    disabled={isSubmitting}
+                    {...register("time")}
                   />
+                  {errors.time && (
+                    <p className="text-sm text-destructive">{errors.time.message}</p>
+                  )}
                 </div>
               </div>
 
@@ -117,9 +217,13 @@ const CreateEvent = () => {
                     id="location"
                     placeholder="Enter location in Toulouse"
                     className="pl-10"
-                    required
+                    disabled={isSubmitting}
+                    {...register("location")}
                   />
                 </div>
+                {errors.location && (
+                  <p className="text-sm text-destructive">{errors.location.message}</p>
+                )}
               </div>
 
               {/* Max Attendees */}
@@ -134,16 +238,20 @@ const CreateEvent = () => {
                     max="100"
                     placeholder="e.g., 20"
                     className="pl-10"
-                    required
+                    disabled={isSubmitting}
+                    {...register("maxAttendees")}
                   />
                 </div>
+                {errors.maxAttendees && (
+                  <p className="text-sm text-destructive">{errors.maxAttendees.message}</p>
+                )}
               </div>
 
               {/* Image Upload */}
               <div className="space-y-2">
                 <Label htmlFor="image">Event Image (Optional)</Label>
                 <div className="flex items-center gap-4">
-                  <Button type="button" variant="outline" className="w-full">
+                  <Button type="button" variant="outline" className="w-full" disabled={isSubmitting}>
                     <ImageIcon className="h-4 w-4 mr-2" />
                     Upload Image
                   </Button>
