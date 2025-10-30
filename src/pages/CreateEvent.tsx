@@ -6,24 +6,78 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, MapPin, Users, Image as ImageIcon } from "lucide-react";
+import { Calendar, MapPin, Users } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { toast } from "sonner";
+import { useEvents } from "@/contexts/EventsContext";
 
 const CreateEvent = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [category, setCategory] = useState<string>("");
+  const { addEvent } = useEvents();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    if (!category) {
+      toast.error("Please select a category for your event.");
+      return;
+    }
+
     setIsSubmitting(true);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      const formData = new FormData(e.currentTarget);
 
-    toast.success("Event created successfully!");
-    setIsSubmitting(false);
-    navigate("/events");
+      const title = ((formData.get("title") as string | null) ?? "").trim();
+      const description = ((formData.get("description") as string | null) ?? "").trim();
+      const date = (formData.get("date") as string | null) ?? "";
+      const time = (formData.get("time") as string | null) ?? "";
+      const location = ((formData.get("location") as string | null) ?? "").trim();
+      const maxAttendees = Number(formData.get("maxAttendees"));
+      const imageUrl = ((formData.get("image") as string | null) ?? "").trim();
+
+      if (!title || !description || !date || !time || !location) {
+        toast.error("Please fill in all required fields.");
+        return;
+      }
+
+      const safeMaxAttendees = Number.isNaN(maxAttendees) ? 0 : Math.max(1, maxAttendees);
+
+      if (safeMaxAttendees <= 0) {
+        toast.error("Please provide a valid number of maximum attendees.");
+        return;
+      }
+
+      const newEvent = addEvent({
+        title,
+        description,
+        category,
+        date,
+        time,
+        location,
+        attendees: 0,
+        maxAttendees: safeMaxAttendees,
+        image:
+          imageUrl ||
+          "https://images.unsplash.com/photo-1545239351-1141bd82e8a6?w=800&h=400&fit=crop",
+        organizer: {
+          name: "Community Organizer",
+          initials: "CO",
+        },
+      });
+
+      toast.success("Event created successfully!");
+      e.currentTarget.reset();
+      setCategory("");
+      navigate(`/events/${newEvent.id}`);
+    } catch (error) {
+      console.error("Failed to create event", error);
+      toast.error("Something went wrong while creating the event.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -49,6 +103,7 @@ const CreateEvent = () => {
                 <Label htmlFor="title">Event Title *</Label>
                 <Input
                   id="title"
+                  name="title"
                   placeholder="e.g., Morning Yoga Session"
                   required
                 />
@@ -59,6 +114,7 @@ const CreateEvent = () => {
                 <Label htmlFor="description">Description *</Label>
                 <Textarea
                   id="description"
+                  name="description"
                   placeholder="Describe your event..."
                   rows={4}
                   required
@@ -68,17 +124,17 @@ const CreateEvent = () => {
               {/* Category */}
               <div className="space-y-2">
                 <Label htmlFor="category">Category *</Label>
-                <Select required>
+                <Select value={category} onValueChange={setCategory}>
                   <SelectTrigger id="category">
                     <SelectValue placeholder="Select a category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="sports">Sports</SelectItem>
-                    <SelectItem value="language">Language</SelectItem>
-                    <SelectItem value="arts">Arts</SelectItem>
-                    <SelectItem value="food">Food</SelectItem>
-                    <SelectItem value="music">Music</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
+                    <SelectItem value="Sports">Sports</SelectItem>
+                    <SelectItem value="Language">Language</SelectItem>
+                    <SelectItem value="Arts">Arts</SelectItem>
+                    <SelectItem value="Food">Food</SelectItem>
+                    <SelectItem value="Music">Music</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -91,6 +147,7 @@ const CreateEvent = () => {
                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="date"
+                      name="date"
                       type="date"
                       className="pl-10"
                       required
@@ -102,6 +159,7 @@ const CreateEvent = () => {
                   <Label htmlFor="time">Time *</Label>
                   <Input
                     id="time"
+                    name="time"
                     type="time"
                     required
                   />
@@ -115,6 +173,7 @@ const CreateEvent = () => {
                   <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="location"
+                    name="location"
                     placeholder="Enter location in Toulouse"
                     className="pl-10"
                     required
@@ -129,6 +188,7 @@ const CreateEvent = () => {
                   <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="maxAttendees"
+                    name="maxAttendees"
                     type="number"
                     min="2"
                     max="100"
@@ -142,13 +202,14 @@ const CreateEvent = () => {
               {/* Image Upload */}
               <div className="space-y-2">
                 <Label htmlFor="image">Event Image (Optional)</Label>
-                <div className="flex items-center gap-4">
-                  <Button type="button" variant="outline" className="w-full">
-                    <ImageIcon className="h-4 w-4 mr-2" />
-                    Upload Image
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">Recommended: 800x400px, max 5MB</p>
+                <Input
+                  id="image"
+                  name="image"
+                  type="url"
+                  placeholder="https://example.com/event-image.jpg"
+                  pattern="https?://.+"
+                />
+                <p className="text-xs text-muted-foreground">Use a direct image URL. Recommended size: 800x400px.</p>
               </div>
 
               {/* Submit Button */}
