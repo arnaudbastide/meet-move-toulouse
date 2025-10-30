@@ -78,6 +78,9 @@ const CreateEvent = () => {
         time: values.time,
         location: values.location,
         max_attendees: values.maxAttendees,
+        attendees_count: 0,
+        organizer_name: "Community Host",
+        organizer_initials: "CH",
       });
 
       if (error) {
