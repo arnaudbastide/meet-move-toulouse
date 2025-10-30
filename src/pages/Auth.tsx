@@ -7,10 +7,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MapPin } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Auth = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const { signIn } = useAuth();
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -20,6 +22,7 @@ const Auth = () => {
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
     toast.success("Welcome back!");
+    signIn();
     setIsLoading(false);
     navigate("/events");
   };
@@ -32,6 +35,7 @@ const Auth = () => {
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
     toast.success("Account created successfully!");
+    signIn();
     setIsLoading(false);
     navigate("/events");
   };
