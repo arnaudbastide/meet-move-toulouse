@@ -8,25 +8,8 @@ import { MapPin, Calendar, Users, Search } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-
-type EventRecord = {
-  id: string;
-  title: string | null;
-  description: string | null;
-  category: string | null;
-  date: string | null;
-  time: string | null;
-  location: string | null;
-  max_attendees: number | null;
-  maxAttendees?: number | null;
-  attendees_count?: number | null;
-  attendees?: number | null;
-  image_url?: string | null;
-  image?: string | null;
-  organizer_id?: string | null;
-  organizer_name?: string | null;
-  organizer_initials?: string | null;
-};
+import type { EventRecord } from "@/types/events";
+import { getLocalEvents, upsertLocalEvents } from "@/lib/local-events";
 
 type CategoryOption = {
   value: string;
@@ -49,16 +32,25 @@ const Events = () => {
 
       if (error) {
         console.error("Failed to fetch events", error);
-        const friendlyMessage =
-          error.code === "42P01"
-            ? "Events storage has not been set up yet. Please run the Supabase migrations."
-            : "Unable to load events right now. Please try again later.";
-        toast.error(friendlyMessage);
+
+        if (error.code === "42P01") {
+          const fallbackEvents = getLocalEvents();
+          setEvents(fallbackEvents);
+          toast.info(
+            "Events storage has not been set up yet. Showing sample events until Supabase migrations are applied.",
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        toast.error("Unable to load events right now. Please try again later.");
         setIsLoading(false);
         return;
       }
 
-      setEvents(data ?? []);
+      const safeEvents = data ?? [];
+      setEvents(safeEvents);
+      upsertLocalEvents(safeEvents);
       setIsLoading(false);
     };
 
