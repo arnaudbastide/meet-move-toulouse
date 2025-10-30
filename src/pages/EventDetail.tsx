@@ -11,7 +11,7 @@ import { useEvents } from "@/contexts/EventsContext";
 const EventDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { events, reserveSpot } = useEvents();
+  const { events, reserveSpot, cancelReservation, isEventReserved } = useEvents();
   const event = events.find((item) => item.id === id);
 
   const fallbackImage = "https://images.unsplash.com/photo-1545239351-1141bd82e8a6?w=1200&h=600&fit=crop";
@@ -24,6 +24,10 @@ const EventDetail = () => {
       .join("")
       .slice(0, 2)
       .toUpperCase();
+
+  const isReserved = event ? isEventReserved(event.id) : false;
+  const spotsLeft = event ? Math.max(0, event.maxAttendees - event.attendees) : 0;
+  const isFullyBooked = spotsLeft === 0 && !isReserved;
 
   const handleBooking = () => {
     if (!event) {
@@ -44,6 +48,27 @@ const EventDetail = () => {
     }
 
     toast.success("Spot reserved! Check your email for details.");
+  };
+
+  const handleCancellation = () => {
+    if (!event) {
+      toast.error("Unable to find this event.");
+      return;
+    }
+
+    const result = cancelReservation(event.id);
+
+    if (!result?.event) {
+      toast.error("Something went wrong while canceling your reservation.");
+      return;
+    }
+
+    if (!result.success) {
+      toast.error("You don't have a reservation for this event.");
+      return;
+    }
+
+    toast.success("Your reservation has been canceled.");
   };
 
   if (!event) {
@@ -167,7 +192,11 @@ const EventDetail = () => {
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Availability</span>
                       <span className="font-medium">
-                        {event.maxAttendees - event.attendees} spots left
+                        {spotsLeft > 0
+                          ? `${spotsLeft} spots left`
+                          : isReserved
+                            ? "You're reserved"
+                            : "Fully booked"}
                       </span>
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -178,17 +207,31 @@ const EventDetail = () => {
                     </div>
                   </div>
 
-                  <Button
-                    variant="hero"
-                    className="w-full"
-                    size="lg"
-                    onClick={handleBooking}
-                  >
-                    Reserve Your Spot
-                  </Button>
+                  {isReserved ? (
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      size="lg"
+                      onClick={handleCancellation}
+                    >
+                      Cancel Reservation
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="hero"
+                      className="w-full"
+                      size="lg"
+                      onClick={handleBooking}
+                      disabled={isFullyBooked}
+                    >
+                      {isFullyBooked ? "Fully Booked" : "Reserve Your Spot"}
+                    </Button>
+                  )}
 
                   <p className="text-xs text-center text-muted-foreground">
-                    Free cancellation up to 24 hours before
+                    {isReserved
+                      ? "You're all set! Cancel any time before the event starts."
+                      : "Free cancellation up to 24 hours before"}
                   </p>
                 </CardContent>
               </Card>

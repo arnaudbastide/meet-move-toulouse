@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
-import { MapPin, Calendar, Plus, User } from "lucide-react";
+import { MapPin, Calendar, Plus, User, Ticket } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const Navbar = () => {
@@ -37,6 +37,15 @@ const Navbar = () => {
               Events
             </Link>
             <Link
+              to="/reservations"
+              className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary ${
+                isActive("/reservations") ? "text-primary" : "text-muted-foreground"
+              }`}
+            >
+              <Ticket className="h-4 w-4" />
+              My Reservations
+            </Link>
+            <Link
               to="/create"
               className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary ${
                 isActive("/create") ? "text-primary" : "text-muted-foreground"
@@ -61,6 +70,12 @@ const Navbar = () => {
                 </Button>
               </Link>
             )}
+            <Link to="/reservations">
+              <Button variant="outline" size="sm">
+                <Ticket className="h-4 w-4 mr-2" />
+                My Reservations
+              </Button>
+            </Link>
             <Link to="/create" className="hidden md:block">
               <Button variant="hero" size="sm">
                 <Plus className="h-4 w-4 mr-2" />
