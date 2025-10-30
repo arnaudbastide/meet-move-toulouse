@@ -1,66 +1,11 @@
-import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import type { Session } from "@supabase/supabase-js";
+import { Link, useLocation } from "react-router-dom";
 import { Button } from "./ui/button";
 import { MapPin, Calendar, Plus, User } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 
 const Navbar = () => {
   const location = useLocation();
-  const navigate = useNavigate();
-  const [session, setSession] = useState<Session | null>(null);
 
   const isActive = (path: string) => location.pathname === path;
-
-  useEffect(() => {
-    let isMounted = true;
-
-    supabase.auth.getSession().then(({ data }) => {
-      if (!isMounted) return;
-      setSession(data.session);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      if (!isMounted) return;
-      setSession(newSession);
-    });
-
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  const displayName = (() => {
-    if (!session) return null;
-    const metadata = session.user.user_metadata as Record<string, unknown>;
-    const rawName = ["full_name", "fullName", "name"]
-      .map((key) => metadata[key])
-      .find((value): value is string => typeof value === "string" && value.trim().length > 0);
-
-    if (rawName) {
-      return rawName.trim().split(" ")[0];
-    }
-
-    const emailPrefix = session.user.email?.split("@")[0];
-    return emailPrefix ?? "Member";
-  })();
-
-  const handleSignOut = async () => {
-    const { error } = await supabase.auth.signOut();
-
-    if (error) {
-      console.error("Failed to sign out", error);
-      toast.error("Unable to sign out. Please try again.");
-      return;
-    }
-
-    toast.success("Signed out successfully.");
-    navigate("/");
-  };
 
   return (
     <nav className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -95,36 +40,18 @@ const Navbar = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            {session ? (
-              <>
-                <span className="hidden md:inline text-sm text-muted-foreground">Hi, {displayName}</span>
-                <Button variant="outline" size="sm" onClick={handleSignOut}>
-                  <User className="h-4 w-4 mr-2" />
-                  Sign Out
-                </Button>
-                <Link to="/create" className="hidden md:block">
-                  <Button variant="hero" size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Event
-                  </Button>
-                </Link>
-              </>
-            ) : (
-              <>
-                <Link to="/auth">
-                  <Button variant="outline" size="sm">
-                    <User className="h-4 w-4 mr-2" />
-                    Sign In
-                  </Button>
-                </Link>
-                <Link to="/create" className="hidden md:block">
-                  <Button variant="hero" size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Event
-                  </Button>
-                </Link>
-              </>
-            )}
+            <Link to="/auth">
+              <Button variant="outline" size="sm">
+                <User className="h-4 w-4 mr-2" />
+                Sign In
+              </Button>
+            </Link>
+            <Link to="/create" className="hidden md:block">
+              <Button variant="hero" size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Create Event
+              </Button>
+            </Link>
           </div>
         </div>
       </div>

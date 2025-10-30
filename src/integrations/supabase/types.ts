@@ -14,60 +14,7 @@ export type Database = {
   }
   public: {
     Tables: {
-      events: {
-        Row: {
-          id: string
-          title: string
-          description: string
-          category: string
-          date: string
-          time: string
-          location: string
-          max_attendees: number
-          attendees_count: number
-          image_url: string | null
-          organizer_id: string
-          organizer_name: string
-          organizer_initials: string
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          title: string
-          description: string
-          category: string
-          date: string
-          time: string
-          location: string
-          max_attendees: number
-          attendees_count?: number
-          image_url?: string | null
-          organizer_id: string
-          organizer_name: string
-          organizer_initials: string
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          title?: string
-          description?: string
-          category?: string
-          date?: string
-          time?: string
-          location?: string
-          max_attendees?: number
-          attendees_count?: number
-          image_url?: string | null
-          organizer_id?: string
-          organizer_name?: string
-          organizer_initials?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Views: {
       [_ in never]: never
