@@ -130,22 +130,18 @@ const CreateEvent = () => {
 
       const { organizerName, organizerInitials } = deriveOrganizerDetails(activeSession);
 
-      const { error } = await supabase
-        .from("events")
-        .insert([
-          {
-            title: values.title,
-            description: values.description,
-            category: values.category,
-            date: values.date,
-            time: values.time,
-            location: values.location,
-            max_attendees: values.maxAttendees,
-            attendees_count: 0,
-            organizer_name: organizerName,
-            organizer_initials: organizerInitials,
-          },
-        ]);
+      const { error } = await supabase.from("events").insert({
+        title: values.title,
+        description: values.description,
+        category: values.category,
+        date: values.date,
+        time: values.time,
+        location: values.location,
+        max_attendees: values.maxAttendees,
+        attendees_count: 0,
+        organizer_name: organizerName,
+        organizer_initials: organizerInitials,
+      });
 
       if (error) {
         console.error("Failed to create event", error);
