@@ -139,6 +139,7 @@ const CreateEvent = () => {
         location: values.location,
         max_attendees: values.maxAttendees,
         attendees_count: 0,
+        organizer_id: activeSession.user.id,
         organizer_name: organizerName,
         organizer_initials: organizerInitials,
       });
