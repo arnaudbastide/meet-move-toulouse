@@ -18,6 +18,31 @@ const defaultIcon = L.icon({
 
 L.Marker.prototype.options.icon = defaultIcon;
 
+type EventCategory = Exclude<EventRecord['category'], null>;
+
+const CATEGORY_ILLUSTRATIONS: Record<EventCategory, string> = {
+  sport: 'https://images.unsplash.com/photo-1526404428533-89d0a83a84f7?auto=format&fit=crop&w=1200&q=80',
+  culture: 'https://images.unsplash.com/photo-1505764706515-aa95265c5abc?auto=format&fit=crop&w=1200&q=80',
+  food: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80',
+  games: 'https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=1200&q=80',
+  other: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1200&q=80',
+};
+
+const withCategoryIllustration = <T extends { category: EventRecord['category']; image_url?: string | null }>(
+  event: T,
+): T & { image_url: string | null } => {
+  if (event.image_url) {
+    return { ...event, image_url: event.image_url };
+  }
+
+  const category = event.category;
+  if (!category) {
+    return { ...event, image_url: null };
+  }
+
+  return { ...event, image_url: CATEGORY_ILLUSTRATIONS[category] };
+};
+
 interface EventWithExtras extends EventRecord {
   vendor_name?: string | null;
   next_slot?: string | null;
