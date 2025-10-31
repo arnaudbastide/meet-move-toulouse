@@ -58,10 +58,3 @@ export interface BookingRecord {
   payment_intent_id: string | null;
   created_at: string;
 }
-
-export interface VendorAccount {
-  profile_id: string;
-  stripe_account_id: string;
-  onboarding_complete: boolean;
-  created_at: string;
-}

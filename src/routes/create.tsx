@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
 import { z } from 'zod';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -13,10 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import { useVendorAccount } from '@/hooks/useVendorAccount';
-import { useStripeOnboarding } from '@/hooks/useStripeOnboarding';
 
 const slotSchema = z.object({
   start_at: z.string().min(1, 'Date de début requise'),
@@ -56,13 +53,6 @@ const defaultValues: EventFormValues = {
 
 const CreateRoute: React.FC = () => {
   const { user } = useAuth();
-  const {
-    account: vendorAccount,
-    isLoading: accountLoading,
-    isRefetching: isRefreshingAccount,
-    refetch: refetchAccount,
-  } = useVendorAccount();
-  const { startOnboarding, starting: startingOnboarding } = useStripeOnboarding();
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
 
@@ -107,9 +97,8 @@ const CreateRoute: React.FC = () => {
       await mutation.mutateAsync(values);
       toast.success('Événement créé');
       form.reset(defaultValues);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Erreur lors de la création';
-      toast.error(message);
+    } catch (error: any) {
+      toast.error(error.message ?? 'Erreur lors de la création');
     } finally {
       setLoading(false);
     }
@@ -117,57 +106,6 @@ const CreateRoute: React.FC = () => {
 
   if (!user) {
     return <p className="p-8 text-center text-muted-foreground">Connectez-vous pour créer un événement.</p>;
-  }
-
-  if (accountLoading) {
-    return (
-      <main className="mx-auto w-full max-w-3xl px-4 py-8">
-        <Card>
-          <CardContent className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            Vérification du statut Stripe...
-          </CardContent>
-        </Card>
-      </main>
-    );
-  }
-
-  const onboardingComplete = vendorAccount?.onboarding_complete ?? false;
-
-  if (!onboardingComplete) {
-    return (
-      <main className="mx-auto w-full max-w-3xl px-4 py-8">
-        <Card className="border-dashed border-primary/40 bg-primary/5">
-          <CardHeader>
-            <CardTitle>Connectez Stripe avant de publier</CardTitle>
-            <CardDescription>
-              Pour encaisser les paiements des utilisateurs, Stripe exige un compte Express vérifié et connecté à votre
-              profil vendor.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            <p>
-              Lancez l’onboarding Stripe Express. Une fois les informations renseignées, revenez sur cette page pour
-              publier votre première expérience.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={() => startOnboarding({ returnPath: '/create' })} disabled={startingOnboarding}>
-                {startingOnboarding ? 'Redirection…' : 'Démarrer l’onboarding Stripe'}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  void refetchAccount();
-                }}
-                disabled={isRefreshingAccount}
-              >
-                {isRefreshingAccount ? 'Vérification…' : 'J’ai déjà terminé'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </main>
-    );
   }
 
   return (

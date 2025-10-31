@@ -50,23 +50,6 @@ test.describe('Meet & Move vendor/user flows', () => {
   });
 
   test('User books then cancels the event', async ({ page, request }) => {
-    await page.addInitScript(() => {
-      (window as unknown as { __STRIPE_TEST_MODE__?: boolean }).__STRIPE_TEST_MODE__ = true;
-    });
-
-    await page.route('**/create-payment-intent', async (route) => {
-      const body = route.request().postDataJSON() as { slotId?: string };
-      expect(body.slotId).toBeTruthy();
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          clientSecret: 'pi_test_client_secret',
-          paymentIntentId: 'pi_test_123',
-        }),
-      });
-    });
-
     await page.goto('/auth');
     await page.getByTestId('auth-switch-register').click();
     await page.getByTestId('auth-name').fill('User Flow');
@@ -80,8 +63,7 @@ test.describe('Meet & Move vendor/user flows', () => {
     await page.getByRole('link', { name: eventTitle }).click();
     await page.getByRole('radio').first().check();
     await page.getByTestId('event-book').click();
-    await expect(page.getByText('Créneau réservé. Finalisez le paiement pour confirmer.')).toBeVisible();
-    await expect(page.getByText('Paiement confirmé, réservation enregistrée.')).toBeVisible();
+    await expect(page.getByText('Réservation confirmée')).toBeVisible();
 
     await page.goto('/bookings');
     await expect(page.getByText(eventTitle)).toBeVisible();

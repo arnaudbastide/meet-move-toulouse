@@ -41,12 +41,3 @@ export const extractLatLng = (geom: unknown): { lat: number; lng: number } | nul
   }
   return null;
 };
-
-export const normalizeBaseUrl = (url: string | undefined) => {
-  if (!url) return '';
-  return url.endsWith('/') ? url.slice(0, -1) : url;
-};
-
-export const getFunctionsBaseUrl = () => {
-  return normalizeBaseUrl(import.meta.env.VITE_FUNCTIONS_URL as string | undefined);
-};
