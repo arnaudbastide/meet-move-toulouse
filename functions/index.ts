@@ -1,236 +1,136 @@
 import express from 'express';
 import Stripe from 'stripe';
-import { createClient } from '@supabase/supabase-js';
 import { fileURLToPath } from 'node:url';
+import type { Request, Response, NextFunction } from 'express';
+import { assertRequiredEnv } from './lib/env.js';
+import { createSupabaseServiceClient, type SupabaseServiceClient } from './lib/supabase.js';
+import { withRequestId, logError } from './lib/logger.js';
+import { sendError } from './lib/responses.js';
+import { RequestError } from './lib/errors.js';
+import { createAccountLinkSchema, createPaymentIntentSchema, attachBookingTransferSchema } from './lib/validation.js';
+import { createAccountLink } from './stripe/onboarding.js';
+import { attachBookingTransfer, createPaymentIntent } from './stripe/payments.js';
+import { createWebhookHandler } from './stripe/webhook.js';
 
-const app = express();
-const port = process.env.PORT || 8787;
-
-const stripeSecret = process.env.STRIPE_SECRET_KEY ?? '';
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET ?? '';
-const supabaseUrl = process.env.SUPABASE_URL ?? '';
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-
-if (!stripeSecret || !supabaseUrl || !serviceKey) {
-  console.warn('Stripe or Supabase environment variables are missing.');
+declare module 'express-serve-static-core' {
+  interface Response {
+    locals: Record<string, unknown> & { requestContext: ReturnType<typeof withRequestId> };
+  }
 }
 
-const stripe = new Stripe(stripeSecret, { apiVersion: '2024-11-20' });
-const supabase = createClient(supabaseUrl, serviceKey);
+export function createApp(dependencies?: {
+  stripe?: Stripe;
+  webhookSecret?: string;
+  supabase?: SupabaseServiceClient;
+}) {
+  const env = assertRequiredEnv();
+  const stripe =
+    dependencies?.stripe ?? new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: '2024-11-20' });
+  const webhookSecret = dependencies?.webhookSecret ?? env.STRIPE_WEBHOOK_SECRET;
+  const supabase = dependencies?.supabase ?? createSupabaseServiceClient(env);
 
-app.use((req, res, next) => {
-  if (req.originalUrl === '/webhook') {
-    return next();
-  }
-  return express.json()(req, res, next);
-});
+  const app = express();
 
-app.post('/create-account-link', async (req, res) => {
-  try {
-    const { profileId, refreshUrl, returnUrl } = req.body as {
-      profileId: string;
-      refreshUrl: string;
-      returnUrl: string;
-    };
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const context = withRequestId(req, res);
+    res.locals.requestContext = context;
+    next();
+  });
 
-    if (!profileId) {
-      return res.status(400).json({ error: 'Missing profileId' });
+  app.use((req, res, next) => {
+    if (req.originalUrl === '/webhook') {
+      return next();
+    }
+    return express.json({ limit: '1mb' })(req, res, next);
+  });
+
+  const deps = { stripe, supabase } as const;
+
+  app.get('/health', (_req, res) => {
+    res.json({ ok: true });
+  });
+
+  app.post('/create-account-link', async (req, res) => {
+    const parsed = createAccountLinkSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid payload', code: 'invalid_request' });
     }
 
-    const { data: vendorAccount } = await supabase
-      .from('vendor_accounts')
-      .select('*')
-      .eq('profile_id', profileId)
-      .maybeSingle();
+    try {
+      const result = await createAccountLink(parsed.data, deps, res.locals.requestContext);
+      return res.json(result);
+    } catch (error) {
+      return handleHandlerError(error, res);
+    }
+  });
 
-    let stripeAccountId = vendorAccount?.stripe_account_id;
-
-    if (!stripeAccountId) {
-      const account = await stripe.accounts.create({
-        type: 'express',
-        country: 'FR',
-        email: req.body.email,
-        capabilities: {
-          card_payments: { requested: true },
-          transfers: { requested: true },
-        },
-      });
-      stripeAccountId = account.id;
-      await supabase.from('vendor_accounts').upsert({
-        profile_id: profileId,
-        stripe_account_id: stripeAccountId,
-        onboarding_complete: account.details_submitted ?? false,
-      });
+  app.post('/create-payment-intent', async (req, res) => {
+    const parsed = createPaymentIntentSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid payload', code: 'invalid_request' });
     }
 
-    const accountLink = await stripe.accountLinks.create({
-      account: stripeAccountId,
-      refresh_url: refreshUrl,
-      return_url: returnUrl,
-      type: 'account_onboarding',
+    const idempotencyKey = req.header('idempotency-key') ?? res.locals.requestContext.requestId;
+
+    try {
+      const result = await createPaymentIntent(
+        { ...parsed.data, idempotencyKey },
+        deps,
+        res.locals.requestContext,
+      );
+      return res.json(result);
+    } catch (error) {
+      return handleHandlerError(error, res);
+    }
+  });
+
+  app.post('/attach-booking-transfer', async (req, res) => {
+    const parsed = attachBookingTransferSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid payload', code: 'invalid_request' });
+    }
+
+    try {
+      const result = await attachBookingTransfer(parsed.data, deps, res.locals.requestContext);
+      return res.json(result);
+    } catch (error) {
+      return handleHandlerError(error, res);
+    }
+  });
+
+  app.post(
+    '/webhook',
+    express.raw({ type: 'application/json' }),
+    createWebhookHandler({ stripe, supabase, webhookSecret }),
+  );
+
+  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    logError('Unhandled error', res.locals.requestContext, {
+      error: err instanceof Error ? err.message : 'unknown_error',
     });
-
-    res.json({ url: accountLink.url });
-  } catch (error: any) {
-    console.error('create-account-link error', error);
-    res.status(400).json({ error: error.message });
-  }
-});
-
-app.post('/create-payment-intent', async (req, res) => {
-  try {
-    const { slotId, customerEmail } = req.body as { slotId: string; customerEmail?: string };
-    if (!slotId) {
-      return res.status(400).json({ error: 'Missing slotId' });
+    if (err instanceof RequestError) {
+      return sendError(res, err);
     }
+    return res.status(500).json({ error: 'Internal server error' });
+  });
 
-    const { data, error } = await supabase
-      .from('event_slots')
-      .select('id, event:events(id, vendor_id, price_cents, currency)')
-      .eq('id', slotId)
-      .maybeSingle();
-    if (error || !data?.event) {
-      return res.status(404).json({ error: 'Slot not found' });
-    }
+  return app;
+}
 
-    const { data: vendorAccount } = await supabase
-      .from('vendor_accounts')
-      .select('*')
-      .eq('profile_id', data.event.vendor_id)
-      .maybeSingle();
-
-    if (!vendorAccount?.stripe_account_id) {
-      return res.status(400).json({ error: 'Vendor has no Stripe account' });
-    }
-
-    const platformFee = Math.ceil((data.event.price_cents ?? 0) * 0.1);
-
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: data.event.price_cents,
-      currency: data.event.currency ?? 'eur',
-      receipt_email: customerEmail,
-      automatic_payment_methods: { enabled: true },
-      application_fee_amount: platformFee,
-      transfer_data: {
-        destination: vendorAccount.stripe_account_id,
-      },
-      metadata: {
-        slot_id: data.id,
-        event_id: data.event.id,
-      },
+function handleHandlerError(error: unknown, res: Response): Response {
+  if (error instanceof RequestError) {
+    logError('Request error', res.locals.requestContext, {
+      error: error.message,
+      code: error.code,
     });
-
-    res.json({ clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id });
-  } catch (error: any) {
-    console.error('create-payment-intent error', error);
-    res.status(400).json({ error: error.message });
-  }
-});
-
-app.post('/attach-booking-transfer', async (req, res) => {
-  try {
-    const { paymentIntentId, bookingId } = req.body as { paymentIntentId?: string; bookingId?: string };
-
-    if (!paymentIntentId || !bookingId) {
-      return res.status(400).json({ error: 'Missing paymentIntentId or bookingId' });
-    }
-
-    const { data: booking, error: bookingError } = await supabase
-      .from('bookings')
-      .select('payment_intent_id')
-      .eq('id', bookingId)
-      .maybeSingle();
-
-    if (bookingError) {
-      console.error('attach-booking-transfer fetch booking error', bookingError);
-      return res.status(400).json({ error: 'Unable to retrieve booking' });
-    }
-
-    if (!booking?.payment_intent_id) {
-      return res.status(404).json({ error: 'Booking not found' });
-    }
-
-    if (booking.payment_intent_id !== paymentIntentId) {
-      return res.status(400).json({ error: 'Payment intent mismatch for booking' });
-    }
-
-    const intent = await stripe.paymentIntents.update(paymentIntentId, {
-      transfer_group: bookingId,
-      metadata: {
-        booking_id: bookingId,
-      },
-    });
-
-    res.json({ transferGroup: intent.transfer_group });
-  } catch (error: any) {
-    console.error('attach-booking-transfer error', error);
-    res.status(400).json({ error: error.message });
-  }
-});
-
-app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-  const signature = req.headers['stripe-signature'];
-  let event: Stripe.Event;
-
-  try {
-    event = stripe.webhooks.constructEvent(req.body, signature ?? '', webhookSecret);
-  } catch (err: any) {
-    console.error('Webhook signature verification failed', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+    return sendError(res, error);
   }
 
-  try {
-    switch (event.type) {
-      case 'account.updated': {
-        const account = event.data.object as Stripe.Account;
-        if (account.id) {
-          await supabase
-            .from('vendor_accounts')
-            .update({ onboarding_complete: account.details_submitted ?? false })
-            .eq('stripe_account_id', account.id);
-        }
-        break;
-      }
-      case 'payment_intent.succeeded': {
-        const intent = event.data.object as Stripe.PaymentIntent;
-        if (intent.id) {
-          await supabase
-            .from('bookings')
-            .update({ status: 'booked' })
-            .eq('payment_intent_id', intent.id);
-        }
-        break;
-      }
-      case 'payment_intent.payment_failed': {
-        const intent = event.data.object as Stripe.PaymentIntent;
-        if (intent.id) {
-          await supabase
-            .from('bookings')
-            .update({ status: 'cancelled' })
-            .eq('payment_intent_id', intent.id);
-        }
-        break;
-      }
-      case 'charge.refunded': {
-        const charge = event.data.object as Stripe.Charge;
-        if (typeof charge.payment_intent === 'string') {
-          await supabase
-            .from('bookings')
-            .update({ status: 'cancelled' })
-            .eq('payment_intent_id', charge.payment_intent);
-        }
-        break;
-      }
-      default:
-        break;
-    }
-  } catch (error) {
-    console.error('Webhook handling error', error);
-    return res.status(500).send('Webhook handler failed');
-  }
-
-  res.json({ received: true });
-});
+  logError('Unexpected error', res.locals.requestContext, {
+    error: error instanceof Error ? error.message : 'unknown_error',
+  });
+  return res.status(500).json({ error: 'Internal server error' });
+}
 
 const isDirectRun = (() => {
   const current = fileURLToPath(import.meta.url);
@@ -238,10 +138,13 @@ const isDirectRun = (() => {
   return executed ? current === executed : false;
 })();
 
+const appInstance = createApp();
+
 if (isDirectRun) {
-  app.listen(port, () => {
+  const port = Number.parseInt(process.env.PORT ?? '8787', 10);
+  appInstance.listen(port, () => {
     console.log(`Stripe functions listening on port ${port}`);
   });
 }
 
-export default app;
+export default appInstance;
