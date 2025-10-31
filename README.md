@@ -51,8 +51,6 @@ L'application est servie sur http://localhost:5173.
    cp .env.example .env
    ```
    - `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` sont disponibles via `supabase status`.
-   - `VITE_STRIPE_PUBLISHABLE_KEY` correspond à la clé publique de votre compte Stripe.
-   - `VITE_FUNCTIONS_URL` pointe vers votre serveur Stripe (ex. `http://localhost:8787`).
 
 ## Stripe
 1. **Variables d'environnement backend** (pour les fonctions Express / Edge Functions)
@@ -73,8 +71,7 @@ L'application est servie sur http://localhost:5173.
    ```
 
 4. **Onboarding vendor**
-   - Configurez `VITE_FUNCTIONS_URL` pour que le front puisse appeler `/create-account-link`.
-   - Depuis le tableau de bord vendor, cliquez sur « Commencer l’onboarding Stripe » pour ouvrir Stripe Express.
+   - Utilisez l'endpoint `/create-account-link` pour créer l'URL d'onboarding Stripe Express.
 
 ## Jeux de données de départ
 - `supabase/seed.sql` ajoute un vendor et un user de démonstration.

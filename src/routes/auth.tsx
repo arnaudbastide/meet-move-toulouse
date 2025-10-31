@@ -68,9 +68,8 @@ const AuthRoute: React.FC = () => {
         await handleLogin(values);
         toast.success('Connexion réussie');
       }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Erreur d'authentification";
-      toast.error(message);
+    } catch (error: any) {
+      toast.error(error.message ?? 'Erreur d\'authentification');
     }
   };
 
