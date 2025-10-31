@@ -35,18 +35,33 @@ const AuthRoute: React.FC = () => {
     const { data, error } = await supabase.auth.signUp({
       email: values.email,
       password: values.password,
+      options: {
+        data: {
+          name: values.name,
+          role: values.role,
+        },
+      },
     });
     if (error) throw error;
-    const user = data.user;
-    if (!user) throw new Error('Inscription incomplète');
-    const roleId = values.role === 'vendor' ? 1 : 2;
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: user.id,
-      name: values.name,
-      role_id: roleId,
+
+    if (data.session) {
+      await refreshProfile();
+      return;
+    }
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: values.email,
+      password: values.password,
     });
-    if (profileError) throw profileError;
-    await supabase.auth.signInWithPassword({ email: values.email, password: values.password });
+
+    if (signInError) {
+      const message = signInError.message?.toLowerCase() ?? '';
+      if (!message.includes('email') || !message.includes('confirm')) {
+        throw signInError;
+      }
+      return;
+    }
+
     await refreshProfile();
   };
 
