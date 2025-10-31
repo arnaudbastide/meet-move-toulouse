@@ -54,7 +54,7 @@ export const EventsProvider = ({ children }: { children: React.ReactNode }) => {
   const [events, setEvents] = useState<Event[]>([]);
   const [reservedEventIds, setReservedEventIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   // Fetch events from database
   useEffect(() => {
@@ -123,56 +123,92 @@ export const EventsProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const addEvent = useCallback(async (event: CreateEventInput): Promise<Event | null> => {
-    if (!user) return null;
+  const ensureProfileExists = useCallback(
+    async (fallbackName?: string) => {
+      if (!user) return;
 
-    try {
-      const { data, error } = await supabase
-        .from('events')
-        .insert({
-          title: event.title,
-          description: event.description || '',
-          category: event.category,
-          date: event.date,
-          time: event.time,
-          location: event.location,
-          max_attendees: event.maxAttendees,
-          image_url: event.image || null,
-          organizer_id: user.id,
-          organizer_name: event.organizer?.name || 'Community Organizer',
-          organizer_initials: event.organizer?.initials || 'CO',
-        })
-        .select()
-        .single();
+      const { data: existingProfile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle();
 
-      if (error) throw error;
+      if (fetchError) {
+        throw fetchError;
+      }
 
-      const newEvent: Event = {
-        id: data.id,
-        title: data.title,
-        category: data.category,
-        date: data.date,
-        time: data.time,
-        location: data.location,
-        attendees: data.attendees,
-        maxAttendees: data.max_attendees,
-        image: data.image_url || undefined,
-        description: data.description || undefined,
-        organizer: {
-          name: data.organizer_name,
-          initials: data.organizer_initials,
-        },
-        createdAt: data.created_at,
-        organizerId: data.organizer_id,
-      };
+      if (!existingProfile) {
+        const fullName = fallbackName || profile?.full_name || user.email || 'Community Organizer';
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            full_name: fullName,
+          });
 
-      setEvents((prev) => [newEvent, ...prev]);
-      return newEvent;
-    } catch (error) {
-      console.error('Error creating event:', error);
-      return null;
-    }
-  }, [user]);
+        if (insertError) {
+          throw insertError;
+        }
+      }
+    },
+    [profile?.full_name, user]
+  );
+
+  const addEvent = useCallback(
+    async (event: CreateEventInput): Promise<Event | null> => {
+      if (!user) return null;
+
+      try {
+        await ensureProfileExists(event.organizer?.name);
+
+        const { data, error } = await supabase
+          .from('events')
+          .insert({
+            title: event.title,
+            description: event.description || '',
+            category: event.category,
+            date: event.date,
+            time: event.time,
+            location: event.location,
+            max_attendees: event.maxAttendees,
+            image_url: event.image || null,
+            organizer_id: user.id,
+            organizer_name: event.organizer?.name || 'Community Organizer',
+            organizer_initials: event.organizer?.initials || 'CO',
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        const newEvent: Event = {
+          id: data.id,
+          title: data.title,
+          category: data.category,
+          date: data.date,
+          time: data.time,
+          location: data.location,
+          attendees: data.attendees,
+          maxAttendees: data.max_attendees,
+          image: data.image_url || undefined,
+          description: data.description || undefined,
+          organizer: {
+            name: data.organizer_name,
+            initials: data.organizer_initials,
+          },
+          createdAt: data.created_at,
+          organizerId: data.organizer_id,
+        };
+
+        setEvents((prev) => [newEvent, ...prev]);
+        return newEvent;
+      } catch (error) {
+        console.error('Error creating event:', error);
+        return null;
+      }
+    },
+    [ensureProfileExists, user]
+  );
 
   const reserveSpot = useCallback(
     async (eventId: string): Promise<ReserveSpotResult> => {
