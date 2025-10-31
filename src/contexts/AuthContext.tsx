@@ -42,6 +42,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (user) {
+      setLoading(true);
       const getProfile = async () => {
         const { data } = await supabase
           .from('profiles')
@@ -49,6 +50,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           .eq('id', user.id)
           .single();
         setProfile(data);
+        setLoading(false);
       };
       getProfile();
     } else {
