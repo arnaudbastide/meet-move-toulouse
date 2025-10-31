@@ -41,3 +41,8 @@ export const extractLatLng = (geom: unknown): { lat: number; lng: number } | nul
   }
   return null;
 };
+
+export const getFunctionsBaseUrl = (): string => {
+  const base = import.meta.env.VITE_FUNCTIONS_URL || 'http://localhost:8787';
+  return base.endsWith('/') ? base.slice(0, -1) : base;
+};

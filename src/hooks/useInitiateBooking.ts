@@ -1,4 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
+import { getFunctionsBaseUrl } from '@/lib/utils';
 import { useBookSlot } from './useBookSlot';
 
 interface InitiateBookingVariables {
@@ -11,11 +12,7 @@ interface InitiateBookingResult {
   paymentIntentId: string;
 }
 
-const buildFunctionsUrl = (path: string) => {
-  const baseUrl = import.meta.env.VITE_FUNCTIONS_URL || 'http://localhost:8787';
-  const normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-  return `${normalizedBase}${path}`;
-};
+const buildFunctionsUrl = (path: string) => `${getFunctionsBaseUrl()}${path}`;
 
 export const useInitiateBooking = () => {
   const bookSlot = useBookSlot();
