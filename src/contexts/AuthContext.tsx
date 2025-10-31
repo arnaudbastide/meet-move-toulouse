@@ -20,9 +20,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [profileLoading, setProfileLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [roleLoading, setRoleLoading] = useState(false);
 
   const fetchProfile = useCallback(async (userId: string) => {
     setProfileLoading(true);
@@ -90,8 +89,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     await supabase.auth.signOut();
     setProfile(null);
     setIsAdmin(false);
-    setRoleLoading(false);
-    setProfileLoading(false);
   }, []);
 
   useEffect(() => {
@@ -100,39 +97,23 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     const checkAdminRole = async () => {
       if (!user) {
         setIsAdmin(false);
-        setRoleLoading(false);
         return;
       }
 
-      setRoleLoading(true);
+      const { data, error } = await supabase.rpc('has_role', {
+        _user_id: user.id,
+        _role: 'admin',
+      });
 
-      try {
-        const { data, error } = await supabase.rpc('has_role', {
-          _user_id: user.id,
-          _role: 'admin',
-        });
+      if (cancelled) return;
 
-        if (cancelled) {
-          return;
-        }
-
-        if (error) {
-          console.error('Failed to verify admin role', error);
-          setIsAdmin(false);
-          return;
-        }
-
-        setIsAdmin(Boolean(data));
-      } catch (rpcError) {
-        if (!cancelled) {
-          console.error('Unexpected error while verifying admin role', rpcError);
-          setIsAdmin(false);
-        }
-      } finally {
-        if (!cancelled) {
-          setRoleLoading(false);
-        }
+      if (error) {
+        console.error('Failed to verify admin role', error);
+        setIsAdmin(false);
+        return;
       }
+
+      setIsAdmin(Boolean(data));
     };
 
     void checkAdminRole();
@@ -145,7 +126,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const value = useMemo<AuthContextValue>(() => {
     const isVendor = profile?.role_id === 1;
     const isUser = profile?.role_id === 2;
-    const loading = profileLoading || roleLoading;
 
     return {
       session,
@@ -158,16 +138,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       refreshProfile,
       signOut,
     };
-  }, [
-    session,
-    user,
-    profile,
-    profileLoading,
-    roleLoading,
-    refreshProfile,
-    signOut,
-    isAdmin,
-  ]);
+  }, [session, user, profile, loading, refreshProfile, signOut, isAdmin]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
