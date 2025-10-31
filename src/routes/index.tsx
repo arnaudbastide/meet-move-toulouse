@@ -6,7 +6,13 @@ import EventCard from '@/components/EventCard';
 const fetchEvents = async (): Promise<Event[]> => {
   const { data, error } = await supabase
     .from('events')
-    .select('*, profiles(name, avatar_url)')
+    .select(`
+      *,
+      profiles:vendor_id (
+        name,
+        avatar_url
+      )
+    `)
     .eq('status', 'published')
     .order('created_at', { ascending: false });
 

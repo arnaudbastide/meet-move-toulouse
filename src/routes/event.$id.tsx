@@ -10,7 +10,13 @@ import { useInitiateBooking } from '@/hooks/useInitiateBooking';
 const fetchEvent = async (id: string): Promise<Event | null> => {
   const { data, error } = await supabase
     .from('events')
-    .select('*, profiles(name, avatar_url)')
+    .select(`
+      *,
+      profiles:vendor_id (
+        name,
+        avatar_url
+      )
+    `)
     .eq('id', id)
     .single();
 
