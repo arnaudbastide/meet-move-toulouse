@@ -27,15 +27,22 @@ describe('useInitiateBooking', () => {
     vi.unstubAllEnvs();
   });
 
-  it('creates a payment intent before booking a slot', async () => {
-    let resolveFetch: ((value: { ok: boolean; json: () => Promise<unknown> }) => void) | undefined;
+  it('creates a payment intent before booking a slot and attaches the booking to the transfer', async () => {
+    let resolveCreatePaymentIntent:
+      | ((value: { ok: boolean; json: () => Promise<unknown> }) => void)
+      | undefined;
 
-    fetchMock.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveFetch = resolve;
-        }),
-    );
+    fetchMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveCreatePaymentIntent = resolve;
+          }),
+      )
+      .mockImplementationOnce(async () => ({
+        ok: true,
+        json: async () => ({ transferGroup: 'booking-id' }),
+      }));
 
     mutateAsyncMock.mockResolvedValue('booking-id');
 
@@ -58,10 +65,10 @@ describe('useInitiateBooking', () => {
     expect(fetchMock).toHaveBeenCalledWith('https://functions.test/create-payment-intent', expect.any(Object));
     expect(mutateAsyncMock).not.toHaveBeenCalled();
 
-    expect(resolveFetch).toBeDefined();
+    expect(resolveCreatePaymentIntent).toBeDefined();
 
     await act(async () => {
-      resolveFetch!({
+      resolveCreatePaymentIntent!({
         ok: true,
         json: async () => ({ clientSecret: 'secret', paymentIntentId: 'pi_123' }),
       });
@@ -70,6 +77,10 @@ describe('useInitiateBooking', () => {
     });
 
     expect(mutateAsyncMock).toHaveBeenCalledWith({ slotId: 'slot-123', paymentIntentId: 'pi_123' });
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      'https://functions.test/attach-booking-transfer',
+      expect.objectContaining({ method: 'POST' }),
+    );
 
     queryClient.clear();
   });

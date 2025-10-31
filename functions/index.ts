@@ -127,6 +127,47 @@ app.post('/create-payment-intent', async (req, res) => {
   }
 });
 
+app.post('/attach-booking-transfer', async (req, res) => {
+  try {
+    const { paymentIntentId, bookingId } = req.body as { paymentIntentId?: string; bookingId?: string };
+
+    if (!paymentIntentId || !bookingId) {
+      return res.status(400).json({ error: 'Missing paymentIntentId or bookingId' });
+    }
+
+    const { data: booking, error: bookingError } = await supabase
+      .from('bookings')
+      .select('payment_intent_id')
+      .eq('id', bookingId)
+      .maybeSingle();
+
+    if (bookingError) {
+      console.error('attach-booking-transfer fetch booking error', bookingError);
+      return res.status(400).json({ error: 'Unable to retrieve booking' });
+    }
+
+    if (!booking?.payment_intent_id) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    if (booking.payment_intent_id !== paymentIntentId) {
+      return res.status(400).json({ error: 'Payment intent mismatch for booking' });
+    }
+
+    const intent = await stripe.paymentIntents.update(paymentIntentId, {
+      transfer_group: bookingId,
+      metadata: {
+        booking_id: bookingId,
+      },
+    });
+
+    res.json({ transferGroup: intent.transfer_group });
+  } catch (error: any) {
+    console.error('attach-booking-transfer error', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
 app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   const signature = req.headers['stripe-signature'];
   let event: Stripe.Event;

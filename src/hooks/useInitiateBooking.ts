@@ -44,10 +44,33 @@ export const useInitiateBooking = () => {
         throw new Error(payload.error ?? "La création de l'intention de paiement a échoué.");
       }
 
+      let bookingId: string;
       try {
-        await bookSlot.mutateAsync({ slotId, paymentIntentId: payload.paymentIntentId });
+        bookingId = await bookSlot.mutateAsync({ slotId, paymentIntentId: payload.paymentIntentId });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'La réservation a échoué.';
+        throw new Error(message);
+      }
+
+      try {
+        const attachResponse = await fetch(buildFunctionsUrl('/attach-booking-transfer'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paymentIntentId: payload.paymentIntentId, bookingId }),
+        });
+
+        let attachPayload: { transferGroup?: string; error?: string } = {};
+        try {
+          attachPayload = await attachResponse.json();
+        } catch (error) {
+          console.error('attach-booking-transfer parse error', error);
+        }
+
+        if (!attachResponse.ok || !attachPayload.transferGroup) {
+          throw new Error(attachPayload.error ?? 'Échec du rattachement du paiement à la réservation.');
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Échec du rattachement du paiement à la réservation.';
         throw new Error(message);
       }
 

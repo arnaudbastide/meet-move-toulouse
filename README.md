@@ -50,14 +50,15 @@ L'application est servie sur http://localhost:5173.
    ```bash
    cp .env.example .env
    ```
-   - `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` sont disponibles via `supabase status`.
+  - `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` sont disponibles via `supabase status`.
+  - `VITE_STRIPE_PUBLISHABLE_KEY` est obligatoire côté front ; l'application affiche un avertissement si la clé est absente.
 
 ## Stripe
 1. **Variables d'environnement backend** (pour les fonctions Express / Edge Functions)
-   - `STRIPE_SECRET_KEY`
-   - `STRIPE_WEBHOOK_SECRET`
-   - `SUPABASE_URL`
-   - `SUPABASE_SERVICE_ROLE_KEY`
+  - `STRIPE_SECRET_KEY`
+  - `STRIPE_WEBHOOK_SECRET`
+  - `SUPABASE_URL`
+  - `SUPABASE_SERVICE_ROLE_KEY`
 
 2. **Lancer le serveur de fonctions Stripe**
    ```bash
