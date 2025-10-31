@@ -66,7 +66,8 @@ const VendorDashboardRoute: React.FC = () => {
   }, [starting]);
 
   const onboardingComplete = Boolean(account?.onboarding_complete);
-  const shouldRestrictContent = accountLoading || !onboardingComplete;
+  const hasVendorAccount = Boolean(account);
+  const shouldRestrictContent = accountLoading || (hasVendorAccount && !onboardingComplete);
   const totals = useMemo(() => {
     const totalBookings = events.reduce((acc, event) => acc + (event.bookings?.length ?? 0), 0);
     const totalRevenue = events.reduce(
