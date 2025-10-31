@@ -28,7 +28,11 @@ const VendorDashboardRoute: React.FC = () => {
     },
   });
 
-  const events = useMemo(() => eventsQuery.data ?? [], [eventsQuery.data]);
+  if (!user) {
+    return <p className="p-8 text-center text-muted-foreground">Connectez-vous en tant que vendor pour accéder au tableau.</p>;
+  }
+
+  const events = eventsQuery.data ?? [];
 
   const totals = useMemo(() => {
     const totalBookings = events.reduce((acc, event) => acc + (event.bookings?.length ?? 0), 0);
@@ -40,10 +44,6 @@ const VendorDashboardRoute: React.FC = () => {
     );
     return { totalBookings, totalRevenue };
   }, [events]);
-
-  if (!user) {
-    return <p className="p-8 text-center text-muted-foreground">Connectez-vous en tant que vendor pour accéder au tableau.</p>;
-  }
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8">

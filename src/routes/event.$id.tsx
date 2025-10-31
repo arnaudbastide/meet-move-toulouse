@@ -56,9 +56,8 @@ const EventDetailRoute: React.FC = () => {
       await bookSlot.mutateAsync({ slotId: selectedSlot, paymentIntentId });
       toast.success('Réservation confirmée');
       setSelectedSlot(null);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Erreur de réservation';
-      toast.error(message);
+    } catch (error: any) {
+      toast.error(error.message ?? 'Erreur de réservation');
     }
   };
 

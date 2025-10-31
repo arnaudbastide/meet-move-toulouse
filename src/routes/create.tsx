@@ -97,9 +97,8 @@ const CreateRoute: React.FC = () => {
       await mutation.mutateAsync(values);
       toast.success('Événement créé');
       form.reset(defaultValues);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Erreur lors de la création';
-      toast.error(message);
+    } catch (error: any) {
+      toast.error(error.message ?? 'Erreur lors de la création');
     } finally {
       setLoading(false);
     }

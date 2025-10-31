@@ -46,9 +46,8 @@ const BookingsRoute: React.FC = () => {
       toast.success('Réservation annulée');
       await queryClient.invalidateQueries({ queryKey: ['bookings'] });
     },
-    onError: (error: unknown) => {
-      const message = error instanceof Error ? error.message : "Impossible d'annuler";
-      toast.error(message);
+    onError: (error: any) => {
+      toast.error(error.message ?? 'Impossible d\'annuler');
     },
   });
 

@@ -71,10 +71,9 @@ app.post('/create-account-link', async (req, res) => {
     });
 
     res.json({ url: accountLink.url });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
+  } catch (error: any) {
     console.error('create-account-link error', error);
-    res.status(400).json({ error: message });
+    res.status(400).json({ error: error.message });
   }
 });
 
@@ -122,10 +121,9 @@ app.post('/create-payment-intent', async (req, res) => {
     });
 
     res.json({ clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
+  } catch (error: any) {
     console.error('create-payment-intent error', error);
-    res.status(400).json({ error: message });
+    res.status(400).json({ error: error.message });
   }
 });
 
@@ -135,10 +133,9 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
 
   try {
     event = stripe.webhooks.constructEvent(req.body, signature ?? '', webhookSecret);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error('Webhook signature verification failed', err);
-    return res.status(400).send(`Webhook Error: ${message}`);
+  } catch (err: any) {
+    console.error('Webhook signature verification failed', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
   try {
@@ -186,7 +183,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
       default:
         break;
     }
-  } catch (error: unknown) {
+  } catch (error) {
     console.error('Webhook handling error', error);
     return res.status(500).send('Webhook handler failed');
   }

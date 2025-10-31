@@ -1,16 +1,13 @@
-import type { ControllerRenderProps, FieldPath, FieldValues } from 'react-hook-form';
+import { ControllerRenderProps } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { formatPrice } from '@/lib/utils';
 
-interface PriceFieldProps<TFieldValues extends FieldValues> {
-  field: ControllerRenderProps<TFieldValues, FieldPath<TFieldValues>>;
+interface PriceFieldProps {
+  field: ControllerRenderProps<any, string>;
   currency?: string;
 }
 
-export function PriceField<TFieldValues extends FieldValues>({
-  field,
-  currency = 'EUR',
-}: PriceFieldProps<TFieldValues>) {
+export const PriceField: React.FC<PriceFieldProps> = ({ field, currency = 'EUR' }) => {
   const cents = Number(field.value ?? 0);
 
   return (
@@ -26,4 +23,4 @@ export function PriceField<TFieldValues extends FieldValues>({
       <p className="text-xs text-muted-foreground">{formatPrice(cents, currency)}</p>
     </div>
   );
-}
+};
