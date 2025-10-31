@@ -2,11 +2,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase, type Profile } from '@/lib/supabase';
 
-const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS ?? '')
-  .split(',')
-  .map((email) => email.trim().toLowerCase())
-  .filter(Boolean);
-
 type AuthContextValue = {
   session: Session | null;
   user: User | null;
@@ -25,9 +20,12 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [roleLoading, setRoleLoading] = useState(false);
 
   const fetchProfile = useCallback(async (userId: string) => {
+    setProfileLoading(true);
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -40,7 +38,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       console.error('Failed to load profile', error);
       setProfile(null);
     } finally {
-      setLoading(false);
+      setProfileLoading(false);
     }
   }, []);
 
@@ -55,7 +53,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       if (data.session?.user) {
         await fetchProfile(data.session.user.id);
       } else {
-        setLoading(false);
+        setProfileLoading(false);
+        setIsAdmin(false);
+        setRoleLoading(false);
       }
     };
 
@@ -68,6 +68,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         void fetchProfile(nextSession.user.id);
       } else {
         setProfile(null);
+        setProfileLoading(false);
+        setIsAdmin(false);
+        setRoleLoading(false);
       }
     });
 
@@ -86,13 +89,63 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     setProfile(null);
+    setIsAdmin(false);
+    setRoleLoading(false);
+    setProfileLoading(false);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkAdminRole = async () => {
+      if (!user) {
+        setIsAdmin(false);
+        setRoleLoading(false);
+        return;
+      }
+
+      setRoleLoading(true);
+
+      try {
+        const { data, error } = await supabase.rpc('has_role', {
+          _user_id: user.id,
+          _role: 'admin',
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        if (error) {
+          console.error('Failed to verify admin role', error);
+          setIsAdmin(false);
+          return;
+        }
+
+        setIsAdmin(Boolean(data));
+      } catch (rpcError) {
+        if (!cancelled) {
+          console.error('Unexpected error while verifying admin role', rpcError);
+          setIsAdmin(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setRoleLoading(false);
+        }
+      }
+    };
+
+    void checkAdminRole();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   const value = useMemo<AuthContextValue>(() => {
-    const email = user?.email?.toLowerCase() ?? '';
     const isVendor = profile?.role_id === 1;
     const isUser = profile?.role_id === 2;
-    const isAdmin = adminEmails.includes(email);
+    const loading = profileLoading || roleLoading;
 
     return {
       session,
@@ -105,7 +158,16 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       refreshProfile,
       signOut,
     };
-  }, [session, user, profile, loading, refreshProfile, signOut]);
+  }, [
+    session,
+    user,
+    profile,
+    profileLoading,
+    roleLoading,
+    refreshProfile,
+    signOut,
+    isAdmin,
+  ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
