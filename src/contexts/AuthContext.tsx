@@ -24,6 +24,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const [isAdmin, setIsAdmin] = useState(false);
 
   const fetchProfile = useCallback(async (userId: string) => {
+    setProfileLoading(true);
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -36,7 +37,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       console.error('Failed to load profile', error);
       setProfile(null);
     } finally {
-      setLoading(false);
+      setProfileLoading(false);
     }
   }, []);
 
@@ -51,7 +52,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       if (data.session?.user) {
         await fetchProfile(data.session.user.id);
       } else {
-        setLoading(false);
+        setProfileLoading(false);
+        setIsAdmin(false);
+        setRoleLoading(false);
       }
     };
 
@@ -64,6 +67,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         void fetchProfile(nextSession.user.id);
       } else {
         setProfile(null);
+        setProfileLoading(false);
+        setIsAdmin(false);
+        setRoleLoading(false);
       }
     });
 
