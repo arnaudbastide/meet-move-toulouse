@@ -29,13 +29,13 @@ const EventDetail = () => {
   const spotsLeft = event ? Math.max(0, event.maxAttendees - event.attendees) : 0;
   const isFullyBooked = spotsLeft === 0 && !isReserved;
 
-  const handleBooking = () => {
+  const handleBooking = async () => {
     if (!event) {
       toast.error("Unable to find this event.");
       return;
     }
 
-    const result = reserveSpot(event.id);
+    const result = await reserveSpot(event.id);
 
     if (!result.event) {
       toast.error("Something went wrong while reserving your spot.");
@@ -50,13 +50,13 @@ const EventDetail = () => {
     toast.success("Spot reserved! Check your email for details.");
   };
 
-  const handleCancellation = () => {
+  const handleCancellation = async () => {
     if (!event) {
       toast.error("Unable to find this event.");
       return;
     }
 
-    const result = cancelReservation(event.id);
+    const result = await cancelReservation(event.id);
 
     if (!result?.event) {
       toast.error("Something went wrong while canceling your reservation.");

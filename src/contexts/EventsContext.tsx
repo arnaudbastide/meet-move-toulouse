@@ -1,4 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "./AuthContext";
 
 export type Event = {
   id: string;
@@ -16,87 +18,14 @@ export type Event = {
     initials: string;
   };
   createdAt?: string;
+  organizerId?: string;
 };
 
-export type CreateEventInput = Omit<Event, "id"> & { id?: string };
-
-const DEFAULT_EVENTS: Event[] = [
-  {
-    id: "1",
-    title: "Yoga at Jardin des Plantes",
-    category: "Sports",
-    date: "2025-11-02",
-    time: "18:00",
-    location: "Jardin des Plantes, Toulouse",
-    attendees: 8,
-    maxAttendees: 15,
-    image: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=800&h=400&fit=crop",
-    description:
-      "Join us for a relaxing outdoor yoga session in one of Toulouse's most beautiful gardens. All levels welcome! Bring your own mat and water.",
-    organizer: {
-      name: "Sophie Martin",
-      initials: "SM",
-    },
-    createdAt: "2025-10-15T10:00:00.000Z",
-  },
-  {
-    id: "2",
-    title: "French Conversation Meetup",
-    category: "Language",
-    date: "2025-11-03",
-    time: "19:30",
-    location: "Café Le Bibent, Toulouse",
-    attendees: 12,
-    maxAttendees: 20,
-    image: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800&h=400&fit=crop",
-    description:
-      "Practice your French in a relaxed atmosphere with locals and other learners. We'll provide conversation topics and games to keep the chat flowing!",
-    organizer: {
-      name: "Jean Dupont",
-      initials: "JD",
-    },
-    createdAt: "2025-10-12T15:30:00.000Z",
-  },
-  {
-    id: "3",
-    title: "Photography Walk",
-    category: "Arts",
-    date: "2025-11-04",
-    time: "14:00",
-    location: "Canal du Midi, Toulouse",
-    attendees: 5,
-    maxAttendees: 10,
-    image: "https://images.unsplash.com/photo-1452587925148-ce544e77e70d?w=800&h=400&fit=crop",
-    description:
-      "Capture the scenic spots around Canal du Midi with fellow photography enthusiasts. All camera types welcome, from smartphones to DSLRs.",
-    organizer: {
-      name: "Lucie Bernard",
-      initials: "LB",
-    },
-    createdAt: "2025-10-10T09:45:00.000Z",
-  },
-  {
-    id: "4",
-    title: "Beach Volleyball",
-    category: "Sports",
-    date: "2025-11-05",
-    time: "17:00",
-    location: "Toulouse Plage",
-    attendees: 16,
-    maxAttendees: 20,
-    image: "https://images.unsplash.com/photo-1612872087720-bb876e2e67d1?w=800&h=400&fit=crop",
-    description:
-      "Friendly beach volleyball games suitable for all levels. We'll form teams on the spot, so just bring your energy and water!",
-    organizer: {
-      name: "Camille Rousseau",
-      initials: "CR",
-    },
-    createdAt: "2025-10-08T18:20:00.000Z",
-  },
-];
-
-const STORAGE_KEY = "meet-move-toulouse:events";
-const RESERVATIONS_STORAGE_KEY = "meet-move-toulouse:reservations";
+export type CreateEventInput = Omit<Event, "id" | "attendees" | "createdAt" | "organizerId"> & { 
+  id?: string;
+  attendees?: number;
+  createdAt?: string;
+};
 
 type ReserveSpotResult = {
   success: boolean;
@@ -110,185 +39,208 @@ type CancelReservationResult = {
 
 type EventsContextValue = {
   events: Event[];
-  addEvent: (event: CreateEventInput) => Event;
-  reserveSpot: (eventId: string) => ReserveSpotResult;
-  cancelReservation: (eventId: string) => CancelReservationResult;
+  addEvent: (event: CreateEventInput) => Promise<Event | null>;
+  reserveSpot: (eventId: string) => Promise<ReserveSpotResult>;
+  cancelReservation: (eventId: string) => Promise<CancelReservationResult>;
   reservedEventIds: string[];
   reservedEvents: Event[];
   isEventReserved: (eventId: string) => boolean;
+  isLoading: boolean;
 };
 
 const EventsContext = createContext<EventsContextValue | undefined>(undefined);
 
-const generateEventId = () => {
-  if (typeof window !== "undefined" && window.crypto?.randomUUID) {
-    return window.crypto.randomUUID();
-  }
-
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-
-  return `${Date.now()}`;
-};
-
-const getInitialEvents = (): Event[] => {
-  if (typeof window === "undefined") {
-    return DEFAULT_EVENTS;
-  }
-
-  try {
-    const storedEvents = window.localStorage.getItem(STORAGE_KEY);
-    if (!storedEvents) {
-      return DEFAULT_EVENTS;
-    }
-
-    const parsed = JSON.parse(storedEvents) as Event[];
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
-    }
-  } catch (error) {
-    console.error("Failed to read events from localStorage", error);
-  }
-
-  return DEFAULT_EVENTS;
-};
-
-const getInitialReservations = (): string[] => {
-  if (typeof window === "undefined") {
-    return [];
-  }
-
-  try {
-    const storedReservations = window.localStorage.getItem(RESERVATIONS_STORAGE_KEY);
-    if (!storedReservations) {
-      return [];
-    }
-
-    const parsed = JSON.parse(storedReservations) as string[];
-    if (Array.isArray(parsed)) {
-      return parsed;
-    }
-  } catch (error) {
-    console.error("Failed to read reservations from localStorage", error);
-  }
-
-  return [];
-};
-
 export const EventsProvider = ({ children }: { children: React.ReactNode }) => {
-  const [events, setEvents] = useState<Event[]>(getInitialEvents);
-  const [reservedEventIds, setReservedEventIds] = useState<string[]>(getInitialReservations);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [reservedEventIds, setReservedEventIds] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
 
+  // Fetch events from database
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
-    } catch (error) {
-      console.error("Failed to store events in localStorage", error);
-    }
-  }, [events]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    try {
-      window.localStorage.setItem(RESERVATIONS_STORAGE_KEY, JSON.stringify(reservedEventIds));
-    } catch (error) {
-      console.error("Failed to store reservations in localStorage", error);
-    }
-  }, [reservedEventIds]);
-
-  const addEvent = useCallback((event: CreateEventInput): Event => {
-    const newEvent: Event = {
-      ...event,
-      id: event.id ?? generateEventId(),
-      attendees: event.attendees ?? 0,
-      createdAt: event.createdAt ?? new Date().toISOString(),
-    };
-
-    setEvents((prev) => [newEvent, ...prev]);
-
-    return newEvent;
+    fetchEvents();
   }, []);
 
+  // Fetch user's reservations
+  useEffect(() => {
+    if (user) {
+      fetchReservations();
+    } else {
+      setReservedEventIds([]);
+    }
+  }, [user]);
+
+  const fetchEvents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const mappedEvents: Event[] = (data || []).map((event) => ({
+        id: event.id,
+        title: event.title,
+        category: event.category,
+        date: event.date,
+        time: event.time,
+        location: event.location,
+        attendees: event.attendees,
+        maxAttendees: event.max_attendees,
+        image: event.image_url || undefined,
+        description: event.description || undefined,
+        organizer: {
+          name: event.organizer_name,
+          initials: event.organizer_initials,
+        },
+        createdAt: event.created_at,
+        organizerId: event.organizer_id,
+      }));
+
+      setEvents(mappedEvents);
+    } catch (error) {
+      console.error('Error fetching events:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchReservations = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('reservations')
+        .select('event_id')
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      setReservedEventIds(data?.map((r) => r.event_id) || []);
+    } catch (error) {
+      console.error('Error fetching reservations:', error);
+    }
+  };
+
+  const addEvent = useCallback(async (event: CreateEventInput): Promise<Event | null> => {
+    if (!user) return null;
+
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .insert({
+          title: event.title,
+          description: event.description || '',
+          category: event.category,
+          date: event.date,
+          time: event.time,
+          location: event.location,
+          max_attendees: event.maxAttendees,
+          image_url: event.image || null,
+          organizer_id: user.id,
+          organizer_name: event.organizer?.name || 'Community Organizer',
+          organizer_initials: event.organizer?.initials || 'CO',
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const newEvent: Event = {
+        id: data.id,
+        title: data.title,
+        category: data.category,
+        date: data.date,
+        time: data.time,
+        location: data.location,
+        attendees: data.attendees,
+        maxAttendees: data.max_attendees,
+        image: data.image_url || undefined,
+        description: data.description || undefined,
+        organizer: {
+          name: data.organizer_name,
+          initials: data.organizer_initials,
+        },
+        createdAt: data.created_at,
+        organizerId: data.organizer_id,
+      };
+
+      setEvents((prev) => [newEvent, ...prev]);
+      return newEvent;
+    } catch (error) {
+      console.error('Error creating event:', error);
+      return null;
+    }
+  }, [user]);
+
   const reserveSpot = useCallback(
-    (eventId: string): ReserveSpotResult => {
+    async (eventId: string): Promise<ReserveSpotResult> => {
+      if (!user) {
+        return { success: false };
+      }
+
       if (reservedEventIds.includes(eventId)) {
         const existingEvent = events.find((event) => event.id === eventId);
         return { success: false, event: existingEvent };
       }
 
-      let updatedEvent: Event | undefined;
-      let wasUpdated = false;
+      try {
+        const { error } = await supabase
+          .from('reservations')
+          .insert({
+            user_id: user.id,
+            event_id: eventId,
+          });
 
-      setEvents((prev) =>
-        prev.map((event) => {
-          if (event.id !== eventId) {
-            return event;
-          }
+        if (error) throw error;
 
-          if (event.attendees >= event.maxAttendees) {
-            updatedEvent = event;
-            return event;
-          }
-
-          const incremented = { ...event, attendees: event.attendees + 1 };
-          updatedEvent = incremented;
-          wasUpdated = true;
-          return incremented;
-        })
-      );
-
-      if (wasUpdated) {
+        // Fetch updated event
+        await fetchEvents();
         setReservedEventIds((prev) => [...prev, eventId]);
-      }
 
-      return { success: wasUpdated, event: updatedEvent };
+        const updatedEvent = events.find((e) => e.id === eventId);
+        return { success: true, event: updatedEvent };
+      } catch (error: any) {
+        console.error('Error reserving spot:', error);
+        return { success: false };
+      }
     },
-    [events, reservedEventIds]
+    [user, events, reservedEventIds]
   );
 
   const cancelReservation = useCallback(
-    (eventId: string): CancelReservationResult => {
+    async (eventId: string): Promise<CancelReservationResult> => {
+      if (!user) {
+        return { success: false };
+      }
+
       if (!reservedEventIds.includes(eventId)) {
         const existingEvent = events.find((event) => event.id === eventId);
         return { success: false, event: existingEvent };
       }
 
-      let updatedEvent: Event | undefined;
-      let wasUpdated = false;
+      try {
+        const { error } = await supabase
+          .from('reservations')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('event_id', eventId);
 
-      setEvents((prev) =>
-        prev.map((event) => {
-          if (event.id !== eventId) {
-            return event;
-          }
+        if (error) throw error;
 
-          if (event.attendees <= 0) {
-            updatedEvent = event;
-            return event;
-          }
-
-          const decremented = { ...event, attendees: event.attendees - 1 };
-          updatedEvent = decremented;
-          wasUpdated = true;
-          return decremented;
-        })
-      );
-
-      if (wasUpdated) {
+        // Fetch updated event
+        await fetchEvents();
         setReservedEventIds((prev) => prev.filter((id) => id !== eventId));
-      }
 
-      return { success: wasUpdated, event: updatedEvent };
+        const updatedEvent = events.find((e) => e.id === eventId);
+        return { success: true, event: updatedEvent };
+      } catch (error) {
+        console.error('Error canceling reservation:', error);
+        return { success: false };
+      }
     },
-    [events, reservedEventIds]
+    [user, events, reservedEventIds]
   );
 
   const isEventReserved = useCallback(
@@ -310,8 +262,9 @@ export const EventsProvider = ({ children }: { children: React.ReactNode }) => {
       reservedEventIds,
       reservedEvents,
       isEventReserved,
+      isLoading,
     }),
-    [events, addEvent, reserveSpot, cancelReservation, reservedEventIds, reservedEvents, isEventReserved]
+    [events, addEvent, reserveSpot, cancelReservation, reservedEventIds, reservedEvents, isEventReserved, isLoading]
   );
 
   return <EventsContext.Provider value={value}>{children}</EventsContext.Provider>;
