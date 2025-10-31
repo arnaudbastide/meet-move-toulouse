@@ -2,9 +2,13 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, type EventRecord } from '@/lib/supabase';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { EventCard } from '@/components/EventCard';
 import { formatPrice } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { useVendorAccount } from '@/hooks/useVendorAccount';
+import { useStripeOnboarding } from '@/hooks/useStripeOnboarding';
 
 interface EventWithStats extends EventRecord {
   slots?: { id: string; start_at: string; booked_places: number }[] | null;
@@ -13,6 +17,8 @@ interface EventWithStats extends EventRecord {
 
 const VendorDashboardRoute: React.FC = () => {
   const { user } = useAuth();
+  const { account, isLoading: accountLoading } = useVendorAccount();
+  const { startOnboarding, starting } = useStripeOnboarding();
 
   const eventsQuery = useQuery({
     enabled: !!user,
@@ -34,6 +40,23 @@ const VendorDashboardRoute: React.FC = () => {
 
   const events = eventsQuery.data ?? [];
 
+  const hasAccount = Boolean(account?.stripe_account_id);
+  const onboardingComplete = Boolean(account?.onboarding_complete);
+  const onboardingStatusLabel = accountLoading
+    ? 'Chargement'
+    : onboardingComplete
+      ? 'Terminé'
+      : hasAccount
+        ? 'En attente'
+        : 'À démarrer';
+  const onboardingStatusVariant = accountLoading
+    ? 'outline'
+    : onboardingComplete
+      ? 'default'
+      : hasAccount
+        ? 'secondary'
+        : 'destructive';
+
   const totals = useMemo(() => {
     const totalBookings = events.reduce((acc, event) => acc + (event.bookings?.length ?? 0), 0);
     const totalRevenue = events.reduce(
@@ -47,6 +70,53 @@ const VendorDashboardRoute: React.FC = () => {
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8">
+      <Card>
+        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2">
+            <CardTitle>Statut Stripe</CardTitle>
+            <CardDescription>
+              Suivez votre progression d'onboarding Stripe Express pour encaisser les paiements.
+            </CardDescription>
+          </div>
+          <Badge variant={onboardingStatusVariant}>{onboardingStatusLabel}</Badge>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {accountLoading ? (
+            <p className="text-sm text-muted-foreground">Chargement du statut Stripe...</p>
+          ) : (
+            <>
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Identifiant de compte</p>
+                {hasAccount ? (
+                  <p className="font-mono text-xs text-muted-foreground">{account?.stripe_account_id}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Aucun compte Stripe Express n'est encore lié à votre profil.
+                  </p>
+                )}
+              </div>
+
+              {onboardingComplete ? (
+                <p className="text-sm text-muted-foreground">
+                  Votre compte Stripe est validé. Vous pouvez publier des événements et encaisser des réservations.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    {hasAccount
+                      ? 'Terminez les étapes Stripe pour activer les paiements.'
+                      : 'Démarrez la configuration Stripe Express pour accepter les paiements.'}
+                  </p>
+                  <Button onClick={() => startOnboarding()} disabled={starting}>
+                    {starting ? 'Redirection…' : hasAccount ? 'Reprendre Stripe' : 'Commencer Stripe'}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardHeader>
