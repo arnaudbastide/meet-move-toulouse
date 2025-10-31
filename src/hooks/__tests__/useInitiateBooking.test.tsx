@@ -5,11 +5,18 @@ import type { ReactNode } from 'react';
 import { useInitiateBooking } from '../useInitiateBooking';
 
 const mutateAsyncMock = vi.fn();
+const rpcMock = vi.fn();
 
 vi.mock('../useBookSlot', () => ({
   useBookSlot: () => ({
     mutateAsync: mutateAsyncMock,
   }),
+}));
+
+vi.mock('@/lib/supabase', () => ({
+  supabase: {
+    rpc: rpcMock,
+  },
 }));
 
 describe('useInitiateBooking', () => {
@@ -20,6 +27,8 @@ describe('useInitiateBooking', () => {
     (globalThis as unknown as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
     vi.stubEnv('VITE_FUNCTIONS_URL', 'https://functions.test');
     mutateAsyncMock.mockReset();
+    rpcMock.mockReset();
+    rpcMock.mockResolvedValue({ data: null, error: null });
   });
 
   afterEach(() => {
@@ -27,15 +36,22 @@ describe('useInitiateBooking', () => {
     vi.unstubAllEnvs();
   });
 
-  it('creates a payment intent before booking a slot', async () => {
-    let resolveFetch: ((value: { ok: boolean; json: () => Promise<unknown> }) => void) | undefined;
+  it('creates a payment intent before booking a slot and attaches the booking to the transfer', async () => {
+    let resolveCreatePaymentIntent:
+      | ((value: { ok: boolean; json: () => Promise<unknown> }) => void)
+      | undefined;
 
-    fetchMock.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveFetch = resolve;
-        }),
-    );
+    fetchMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveCreatePaymentIntent = resolve;
+          }),
+      )
+      .mockImplementationOnce(async () => ({
+        ok: true,
+        json: async () => ({ transferGroup: 'booking-id' }),
+      }));
 
     mutateAsyncMock.mockResolvedValue('booking-id');
 
@@ -58,10 +74,10 @@ describe('useInitiateBooking', () => {
     expect(fetchMock).toHaveBeenCalledWith('https://functions.test/create-payment-intent', expect.any(Object));
     expect(mutateAsyncMock).not.toHaveBeenCalled();
 
-    expect(resolveFetch).toBeDefined();
+    expect(resolveCreatePaymentIntent).toBeDefined();
 
     await act(async () => {
-      resolveFetch!({
+      resolveCreatePaymentIntent!({
         ok: true,
         json: async () => ({ clientSecret: 'secret', paymentIntentId: 'pi_123' }),
       });
@@ -70,6 +86,43 @@ describe('useInitiateBooking', () => {
     });
 
     expect(mutateAsyncMock).toHaveBeenCalledWith({ slotId: 'slot-123', paymentIntentId: 'pi_123' });
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      'https://functions.test/attach-booking-transfer',
+      expect.objectContaining({ method: 'POST' }),
+    );
+
+    expect(rpcMock).not.toHaveBeenCalled();
+
+    queryClient.clear();
+  });
+
+  it('cancels the booking if attaching the transfer fails', async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ clientSecret: 'secret', paymentIntentId: 'pi_123' }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ error: 'attach failed' }),
+      });
+
+    mutateAsyncMock.mockResolvedValue('booking-id');
+
+    const queryClient = new QueryClient();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => useInitiateBooking(), { wrapper });
+
+    await expect(
+      act(async () => {
+        await result.current.mutateAsync({ slotId: 'slot-123', customerEmail: 'user@example.com' });
+      }),
+    ).rejects.toThrow('attach failed');
+
+    expect(rpcMock).toHaveBeenCalledWith('cancel_booking', { p_booking_id: 'booking-id' });
 
     queryClient.clear();
   });
