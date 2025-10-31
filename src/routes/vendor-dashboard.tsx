@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/utils';
 import { useStripeOnboarding } from '@/hooks/useStripeOnboarding';
 import { useVendorAccount } from '@/hooks/useVendorAccount';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface EventWithStats extends EventRecord {
   slots?: { id: string; start_at: string; booked_places: number }[] | null;
@@ -39,11 +40,18 @@ const VendorDashboardRoute: React.FC = () => {
     },
   });
 
+  useEffect(() => {
+    if (eventsQuery.error) {
+      toast.error('Impossible de charger vos événements pour le moment.');
+    }
+  }, [eventsQuery.error]);
+
   if (!user) {
     return <p className="p-8 text-center text-muted-foreground">Connectez-vous en tant que vendor pour accéder au tableau.</p>;
   }
 
   const events = eventsQuery.data?.events ?? [];
+  const isFetchingEvents = eventsQuery.isLoading;
   const onboardingToastId = useRef<string | number | null>(null);
 
   useEffect(() => {
@@ -105,7 +113,7 @@ const VendorDashboardRoute: React.FC = () => {
             <CardTitle>Total réservations</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">
-            {shouldRestrictContent ? '—' : totals.totalBookings}
+            {isFetchingEvents || shouldRestrictContent ? '—' : totals.totalBookings}
           </CardContent>
         </Card>
         <Card>
@@ -113,7 +121,7 @@ const VendorDashboardRoute: React.FC = () => {
             <CardTitle>Revenus nets</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">
-            {shouldRestrictContent ? '—' : formatPrice(totals.totalRevenue, 'EUR')}
+            {isFetchingEvents || shouldRestrictContent ? '—' : formatPrice(totals.totalRevenue, 'EUR')}
           </CardContent>
         </Card>
       </div>
@@ -125,7 +133,27 @@ const VendorDashboardRoute: React.FC = () => {
       )}
 
       <div className="space-y-4">
-        {events.map((event) => {
+        {isFetchingEvents && (
+          <>
+            {Array.from({ length: 2 }).map((_, index) => (
+              <Card key={index} className="space-y-4">
+                <CardHeader>
+                  <Skeleton className="h-6 w-48" />
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Skeleton className="h-40 w-full" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-2/3" />
+                    <Skeleton className="h-4 w-1/2" />
+                    <Skeleton className="h-4 w-1/3" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </>
+        )}
+        {!isFetchingEvents &&
+          events.map((event) => {
           const totalBookedPlaces = event.slots?.reduce((sum, slot) => sum + (slot.booked_places ?? 0), 0) ?? 0;
           const eventRevenue = formatPrice(
             event.bookings?.reduce(
@@ -137,7 +165,7 @@ const VendorDashboardRoute: React.FC = () => {
           return (
             <Card
               key={event.id}
-              className={shouldRestrictContent ? 'opacity-60' : undefined}
+              className={shouldRestrictContent ? 'pointer-events-none opacity-60' : undefined}
               aria-disabled={shouldRestrictContent}
             >
               <CardHeader>
@@ -163,7 +191,7 @@ const VendorDashboardRoute: React.FC = () => {
             </Card>
           );
         })}
-        {events.length === 0 && (
+        {!isFetchingEvents && events.length === 0 && (
           <p className="text-muted-foreground">
             {accountLoading
               ? 'Chargement des informations Stripe...'

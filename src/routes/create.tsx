@@ -1,10 +1,10 @@
-import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { formatISO } from 'date-fns';
 import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { PriceField } from '@/components/PriceField';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
+import { useVendorAccount } from '@/hooks/useVendorAccount';
+import { useStripeOnboarding } from '@/hooks/useStripeOnboarding';
 
 const slotSchema = z.object({
   start_at: z.string().min(1, 'Date de début requise'),
@@ -34,7 +36,7 @@ const eventSchema = z.object({
 
 type EventFormValues = z.infer<typeof eventSchema>;
 
-const defaultValues: EventFormValues = {
+const getDefaultValues = (): EventFormValues => ({
   title: '',
   description: '',
   category: 'sport',
@@ -49,16 +51,17 @@ const defaultValues: EventFormValues = {
       end_at: formatISO(new Date(Date.now() + 60 * 60 * 1000), { representation: 'complete' }).slice(0, 16),
     },
   ],
-};
+});
 
 const CreateRoute: React.FC = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [loading, setLoading] = useState(false);
+  const { account, isLoading: accountLoading } = useVendorAccount();
+  const { startOnboarding, starting } = useStripeOnboarding();
 
   const form = useForm<EventFormValues>({
     resolver: zodResolver(eventSchema),
-    defaultValues,
+    defaultValues: getDefaultValues(),
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -87,26 +90,40 @@ const CreateRoute: React.FC = () => {
       return data as string;
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['events'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['events'] }),
+        queryClient.invalidateQueries({ queryKey: ['vendor-events'] }),
+      ]);
     },
   });
 
   const onSubmit = async (values: EventFormValues) => {
-    setLoading(true);
+    if (accountLoading) {
+      toast.error('Chargement du statut Stripe en cours, réessayez dans un instant.');
+      return;
+    }
+
+    if (!account?.onboarding_complete) {
+      toast.error('Finalisez votre onboarding Stripe avant de publier un événement.');
+      return;
+    }
+
     try {
       await mutation.mutateAsync(values);
       toast.success('Événement créé');
-      form.reset(defaultValues);
+      form.reset(getDefaultValues());
     } catch (error: any) {
       toast.error(error.message ?? 'Erreur lors de la création');
-    } finally {
-      setLoading(false);
     }
   };
 
   if (!user) {
     return <p className="p-8 text-center text-muted-foreground">Connectez-vous pour créer un événement.</p>;
   }
+
+  const onboardingComplete = Boolean(account?.onboarding_complete);
+  const creationLocked = accountLoading || !onboardingComplete;
+  const isSubmitting = mutation.isPending;
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-8">
@@ -115,143 +132,173 @@ const CreateRoute: React.FC = () => {
           <CardTitle>Publier une nouvelle expérience</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="title">Titre</Label>
-                <Input id="title" data-testid="create-title" {...form.register('title')} />
-                {form.formState.errors.title && (
-                  <p className="text-sm text-destructive">{form.formState.errors.title.message}</p>
+          {creationLocked && (
+            <div className="mb-6 rounded-md border border-dashed border-muted-foreground/40 bg-muted/30 p-4 text-sm text-muted-foreground">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p>
+                  {accountLoading
+                    ? 'Chargement du statut Stripe...'
+                    : 'Finalisez votre onboarding Stripe pour publier vos expériences.'}
+                </p>
+                {!accountLoading && (
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      void startOnboarding({ returnPath: '/create' });
+                    }}
+                    disabled={starting}
+                  >
+                    {starting && <Loader2 className="mr-2 size-4 animate-spin" />}
+                    {starting ? 'Redirection vers Stripe...' : 'Continuer sur Stripe'}
+                  </Button>
                 )}
               </div>
-              <div className="space-y-2">
-                <Label>Catégorie</Label>
-                <Controller
-                  control={form.control}
-                  name="category"
-                  render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choisir" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="sport">Sport</SelectItem>
-                        <SelectItem value="culture">Culture</SelectItem>
-                        <SelectItem value="food">Gastronomie</SelectItem>
-                        <SelectItem value="games">Jeux</SelectItem>
-                        <SelectItem value="other">Autre</SelectItem>
-                      </SelectContent>
-                    </Select>
+            </div>
+          )}
+
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <fieldset disabled={creationLocked || isSubmitting} className="space-y-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="title">Titre</Label>
+                  <Input id="title" data-testid="create-title" {...form.register('title')} />
+                  {form.formState.errors.title && (
+                    <p className="text-sm text-destructive">{form.formState.errors.title.message}</p>
                   )}
-                />
+                </div>
+                <div className="space-y-2">
+                  <Label>Catégorie</Label>
+                  <Controller
+                    control={form.control}
+                    name="category"
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choisir" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="sport">Sport</SelectItem>
+                          <SelectItem value="culture">Culture</SelectItem>
+                          <SelectItem value="food">Gastronomie</SelectItem>
+                          <SelectItem value="games">Jeux</SelectItem>
+                          <SelectItem value="other">Autre</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea id="description" rows={4} data-testid="create-description" {...form.register('description')} />
-            </div>
-
-            <Controller
-              control={form.control}
-              name="price_cents"
-              render={({ field }) => <PriceField field={field} currency="EUR" />}
-            />
-
-            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="max_places">Places maximum</Label>
-                <Input
-                  id="max_places"
-                  type="number"
-                  min={1}
-                  data-testid="create-max"
-                  {...form.register('max_places', { valueAsNumber: true })}
-                />
+                <Label htmlFor="description">Description</Label>
+                <Textarea id="description" rows={4} data-testid="create-description" {...form.register('description')} />
               </div>
-              <div className="space-y-2">
-                <Label>Adresse</Label>
-                <Input data-testid="create-address" {...form.register('address')} />
-              </div>
-            </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Latitude</Label>
-                <Input
-                  type="number"
-                  step="any"
-                  data-testid="create-lat"
-                  {...form.register('latitude', { valueAsNumber: true })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Longitude</Label>
-                <Input
-                  type="number"
-                  step="any"
-                  data-testid="create-lng"
-                  {...form.register('longitude', { valueAsNumber: true })}
-                />
-              </div>
-            </div>
+              <Controller
+                control={form.control}
+                name="price_cents"
+                render={({ field }) => <PriceField field={field} currency="EUR" />}
+              />
 
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium">Créneaux</h3>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() =>
-                    append({
-                      start_at: '',
-                      end_at: '',
-                    })
-                  }
-                >
-                  Ajouter un créneau
-                </Button>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="max_places">Places maximum</Label>
+                  <Input
+                    id="max_places"
+                    type="number"
+                    min={1}
+                    data-testid="create-max"
+                    {...form.register('max_places', { valueAsNumber: true })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Adresse</Label>
+                  <Input data-testid="create-address" {...form.register('address')} />
+                </div>
               </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Latitude</Label>
+                  <Input
+                    type="number"
+                    step="any"
+                    data-testid="create-lat"
+                    {...form.register('latitude', { valueAsNumber: true })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Longitude</Label>
+                  <Input
+                    type="number"
+                    step="any"
+                    data-testid="create-lng"
+                    {...form.register('longitude', { valueAsNumber: true })}
+                  />
+                </div>
+              </div>
+
               <div className="space-y-4">
-                {fields.map((field, index) => (
-                  <div key={field.id} className="grid gap-4 rounded-md border p-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor={`slot-start-${index}`}>Début</Label>
-                      <Input
-                        id={`slot-start-${index}`}
-                        type="datetime-local"
-                        data-testid={`slot-start-${index}`}
-                        {...form.register(`slots.${index}.start_at`)}
-                      />
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium">Créneaux</h3>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() =>
+                      append({
+                        start_at: '',
+                        end_at: '',
+                      })
+                    }
+                  >
+                    Ajouter un créneau
+                  </Button>
+                </div>
+                <div className="space-y-4">
+                  {fields.map((field, index) => (
+                    <div key={field.id} className="grid gap-4 rounded-md border p-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor={`slot-start-${index}`}>Début</Label>
+                        <Input
+                          id={`slot-start-${index}`}
+                          type="datetime-local"
+                          data-testid={`slot-start-${index}`}
+                          {...form.register(`slots.${index}.start_at`)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`slot-end-${index}`}>Fin</Label>
+                        <Input
+                          id={`slot-end-${index}`}
+                          type="datetime-local"
+                          data-testid={`slot-end-${index}`}
+                          {...form.register(`slots.${index}.end_at`)}
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="col-span-full justify-start text-destructive"
+                        onClick={() => remove(index)}
+                        disabled={fields.length === 1}
+                      >
+                        Supprimer
+                      </Button>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor={`slot-end-${index}`}>Fin</Label>
-                      <Input
-                        id={`slot-end-${index}`}
-                        type="datetime-local"
-                        data-testid={`slot-end-${index}`}
-                        {...form.register(`slots.${index}.end_at`)}
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="col-span-full justify-start text-destructive"
-                      onClick={() => remove(index)}
-                      disabled={fields.length === 1}
-                    >
-                      Supprimer
-                    </Button>
-                  </div>
-                ))}
+                  ))}
+                </div>
+                {form.formState.errors.slots && (
+                  <p className="text-sm text-destructive">{form.formState.errors.slots.message as string}</p>
+                )}
               </div>
-              {form.formState.errors.slots && (
-                <p className="text-sm text-destructive">{form.formState.errors.slots.message as string}</p>
-              )}
-            </div>
+            </fieldset>
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Publication...' : 'Publier'}
+            <Button type="submit" className="w-full" disabled={creationLocked || isSubmitting}>
+              {creationLocked
+                ? 'Onboarding Stripe requis'
+                : isSubmitting
+                  ? 'Publication...'
+                  : 'Publier'}
             </Button>
           </form>
         </CardContent>
