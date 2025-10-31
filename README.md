@@ -45,6 +45,8 @@ L'application est servie sur http://localhost:5173.
    supabase migration up
    ```
    La migration `supabase/migrations/001_vendor_user_event.sql` crée toutes les tables, politiques RLS et RPCs nécessaires.
+   Les migrations ultérieures (dont `20250210120000_enforce_role_and_vendor_policies.sql`) verrouillent le rôle des profils et
+   renforcent la fonction `cancel_booking` avec une fenêtre d'annulation de 24h. Rejouez-les sur chaque environnement.
 3. **Configurer les variables d'environnement**
    Copiez `.env.example` vers `.env` et complétez :
    ```bash
@@ -96,6 +98,16 @@ Le fichier `tests/e2e.spec.ts` couvre :
 - Inscription user → réservation + paiement (mock Stripe) → annulation → traitement du webhook
 
 > **Note :** Les tests supposent un backend Supabase en fonctionnement avec une base réinitialisée. Adaptez les identifiants si nécessaire.
+
+## Parcours MVP à vérifier
+1. **Seed + migrations** : exécuter `supabase migration up` puis `supabase db query < supabase/seed.sql`.
+2. **Vendor** : connecter le compte demo vendor, finaliser l'onboarding Stripe depuis `/vendor-dashboard` et vérifier que la
+   page `/create` reste verrouillée tant que l'onboarding n'est pas terminé.
+3. **Création** : créer un événement (créneaux > 24h) et constater les statistiques dans `/vendor-dashboard` une fois
+   l'onboarding complété.
+4. **User** : réserver un créneau via `/event/:id`, finaliser le paiement, puis annuler la réservation avant la limite de 24h.
+   Vérifier qu'une tentative d'annulation hors délai affiche le toast explicite.
+5. **E2E** : lancer `pnpm test:e2e` pour valider l'enchaînement complet (inscriptions, paiement mocké, annulation, webhook).
 
 ## Déploiement Vercel
 1. Définir les variables d'environnement `VITE_*` dans Vercel.
