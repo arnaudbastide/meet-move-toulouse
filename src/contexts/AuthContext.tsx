@@ -2,11 +2,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase, type Profile } from '@/lib/supabase';
 
-const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS ?? '')
-  .split(',')
-  .map((email) => email.trim().toLowerCase())
-  .filter(Boolean);
-
 type AuthContextValue = {
   session: Session | null;
   user: User | null;
@@ -26,6 +21,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const fetchProfile = useCallback(async (userId: string) => {
     try {
@@ -86,13 +82,44 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     setProfile(null);
+    setIsAdmin(false);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkAdminRole = async () => {
+      if (!user) {
+        setIsAdmin(false);
+        return;
+      }
+
+      const { data, error } = await supabase.rpc('has_role', {
+        _user_id: user.id,
+        _role: 'admin',
+      });
+
+      if (cancelled) return;
+
+      if (error) {
+        console.error('Failed to verify admin role', error);
+        setIsAdmin(false);
+        return;
+      }
+
+      setIsAdmin(Boolean(data));
+    };
+
+    void checkAdminRole();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   const value = useMemo<AuthContextValue>(() => {
-    const email = user?.email?.toLowerCase() ?? '';
     const isVendor = profile?.role_id === 1;
     const isUser = profile?.role_id === 2;
-    const isAdmin = adminEmails.includes(email);
 
     return {
       session,
@@ -105,7 +132,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       refreshProfile,
       signOut,
     };
-  }, [session, user, profile, loading, refreshProfile, signOut]);
+  }, [session, user, profile, loading, refreshProfile, signOut, isAdmin]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
