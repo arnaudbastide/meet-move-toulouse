@@ -67,6 +67,7 @@ export interface EventRecord {
   title: string;
   description: string | null;
   category: 'sport' | 'culture' | 'food' | 'games' | 'other' | null;
+  image_url?: string | null;
   price_cents: number;
   currency: string;
   max_places: number;
