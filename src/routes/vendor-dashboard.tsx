@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, type EventRecord } from '@/lib/supabase';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { EventCard } from '@/components/EventCard';
 import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/utils';
@@ -23,6 +23,8 @@ interface VendorAccount {
 
 const VendorDashboardRoute: React.FC = () => {
   const { user } = useAuth();
+  const { account, isLoading: accountLoading } = useVendorAccount();
+  const { startOnboarding, starting } = useStripeOnboarding();
 
   const eventsQuery = useQuery({
     enabled: !!user,
@@ -72,6 +74,23 @@ const VendorDashboardRoute: React.FC = () => {
       onboardingToastId.current = null;
     }
   }, [starting]);
+
+  const hasAccount = Boolean(account?.stripe_account_id);
+  const onboardingComplete = Boolean(account?.onboarding_complete);
+  const onboardingStatusLabel = accountLoading
+    ? 'Chargement'
+    : onboardingComplete
+      ? 'Terminé'
+      : hasAccount
+        ? 'En attente'
+        : 'À démarrer';
+  const onboardingStatusVariant = accountLoading
+    ? 'outline'
+    : onboardingComplete
+      ? 'default'
+      : hasAccount
+        ? 'secondary'
+        : 'destructive';
 
   const totals = useMemo(() => {
     const totalBookings = events.reduce((acc, event) => acc + (event.bookings?.length ?? 0), 0);

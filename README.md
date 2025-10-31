@@ -72,6 +72,8 @@ L'application est servie sur http://localhost:5173.
 
 4. **Onboarding vendor**
    - Utilisez l'endpoint `/create-account-link` pour créer l'URL d'onboarding Stripe Express.
+   - Dans l'application, ouvrez le tableau vendor (`/vendor-dashboard`) et utilisez la carte « Statut Stripe » pour démarrer ou
+     reprendre l'onboarding depuis l'interface.
 
 ## Jeux de données de départ
 - `supabase/seed.sql` ajoute un vendor et un user de démonstration.
