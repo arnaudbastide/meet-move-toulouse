@@ -47,6 +47,8 @@ const DEFAULT_EVENTS: EventWithExtras[] = [
     description:
       'Un footing convivial le long du canal du Midi pour découvrir Toulouse en bougeant. Accessible à tous les niveaux.',
     category: 'sport',
+    image_url:
+      'https://images.unsplash.com/photo-1526404428533-89d0a83a84f7?auto=format&fit=crop&w=1200&q=80',
     price_cents: 0,
     currency: 'EUR',
     max_places: 40,
@@ -64,6 +66,8 @@ const DEFAULT_EVENTS: EventWithExtras[] = [
     description:
       'Une visite guidée du centre historique pour découvrir l’histoire du Capitole et des lieux emblématiques de Toulouse.',
     category: 'culture',
+    image_url:
+      'https://images.unsplash.com/photo-1505764706515-aa95265c5abc?auto=format&fit=crop&w=1200&q=80',
     price_cents: 1200,
     currency: 'EUR',
     max_places: 25,
@@ -81,6 +85,8 @@ const DEFAULT_EVENTS: EventWithExtras[] = [
     description:
       'Apprenez à préparer un menu de spécialités occitanes avec un chef local et repartez avec vos créations.',
     category: 'food',
+    image_url:
+      'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80',
     price_cents: 3500,
     currency: 'EUR',
     max_places: 16,
@@ -98,6 +104,8 @@ const DEFAULT_EVENTS: EventWithExtras[] = [
     description:
       'Rencontrez d’autres joueurs autour d’une sélection de jeux modernes et classiques, encadrée par une animatrice.',
     category: 'games',
+    image_url:
+      'https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=1200&q=80',
     price_cents: 800,
     currency: 'EUR',
     max_places: 30,
@@ -115,6 +123,8 @@ const DEFAULT_EVENTS: EventWithExtras[] = [
     description:
       'Un moment convivial pour rencontrer des Toulousains et d’autres nouveaux arrivants autour d’un café.',
     category: 'other',
+    image_url:
+      'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1200&q=80',
     price_cents: 500,
     currency: 'EUR',
     max_places: 50,

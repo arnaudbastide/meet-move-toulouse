@@ -13,7 +13,15 @@ export const EventCard: React.FC<EventCardProps> = ({ event, variant = 'list' })
   const price = formatPrice(event.price_cents, event.currency?.toUpperCase() ?? 'EUR');
 
   return (
-    <Card className="transition hover:shadow-lg">
+    <Card className="overflow-hidden transition hover:shadow-lg">
+      {event.image_url && (
+        <img
+          src={event.image_url}
+          alt={`Illustration pour ${event.title}`}
+          loading="lazy"
+          className="h-48 w-full object-cover"
+        />
+      )}
       <CardHeader className="space-y-2">
         <CardTitle className="flex items-center justify-between">
           <Link to={`/event/${event.id}`} className="hover:underline">
