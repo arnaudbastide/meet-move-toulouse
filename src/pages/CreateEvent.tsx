@@ -28,7 +28,7 @@ const eventSchema = z.object({
   time: z.string().regex(/^\d{2}:\d{2}$/, "Invalid time format"),
   location: z.string().trim().min(1, "Location is required").max(500, "Location must be less than 500 characters"),
   maxAttendees: z.number().min(2, "At least 2 attendees required").max(1000, "Maximum 1000 attendees allowed"),
-  imageUrl: z.string().trim().url("Must be a valid URL").optional().or(z.literal("")),
+  imageUrl: z.union([z.string().url("Must be a valid URL"), z.literal("")]).optional(),
 });
 
 const CreateEvent = () => {
