@@ -12,6 +12,7 @@ import NotFound from "./pages/NotFound";
 import MyReservations from "./pages/MyReservations";
 import { AuthProvider } from "./contexts/AuthContext";
 import { EventsProvider } from "./contexts/EventsContext";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -27,8 +28,16 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/events" element={<Events />} />
               <Route path="/events/:id" element={<EventDetail />} />
-              <Route path="/create" element={<CreateEvent />} />
-              <Route path="/reservations" element={<MyReservations />} />
+              <Route path="/create" element={
+                <ProtectedRoute>
+                  <CreateEvent />
+                </ProtectedRoute>
+              } />
+              <Route path="/reservations" element={
+                <ProtectedRoute>
+                  <MyReservations />
+                </ProtectedRoute>
+              } />
               <Route path="/auth" element={<Auth />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
