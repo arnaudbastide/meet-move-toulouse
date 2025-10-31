@@ -66,8 +66,8 @@ const CLUSTER_RADIUS_PX = 45;
 
 const DEFAULT_EVENTS: EventWithExtras[] = [
   {
-    id: 'default-sport-event',
-    vendor_id: 'default-organizer',
+    id: '11111111-1111-4111-8111-111111111111',
+    vendor_id: '10000000-0000-0000-0000-000000000001',
     title: 'Course du canal du Midi',
     description:
       'Un footing convivial le long du canal du Midi pour découvrir Toulouse en bougeant. Accessible à tous les niveaux.',
@@ -79,13 +79,13 @@ const DEFAULT_EVENTS: EventWithExtras[] = [
     geom: { type: 'Point', coordinates: [1.4526, 43.6045] },
     address: 'Port Saint-Sauveur, Toulouse',
     status: 'published',
-    created_at: '2024-01-05T09:00:00.000Z',
+    created_at: '2024-11-01T09:00:00.000Z',
     vendor_name: 'Collectif Toulouse Sport',
-    next_slot: '2024-12-08T09:30:00.000Z',
+    next_slot: '2025-12-08T08:30:00.000Z',
   },
   {
-    id: 'default-culture-event',
-    vendor_id: 'default-organizer',
+    id: '22222222-2222-4222-8222-222222222222',
+    vendor_id: '10000000-0000-0000-0000-000000000002',
     title: 'Balade culturelle au Capitole',
     description:
       'Une visite guidée du centre historique pour découvrir l’histoire du Capitole et des lieux emblématiques de Toulouse.',
@@ -98,13 +98,13 @@ const DEFAULT_EVENTS: EventWithExtras[] = [
     geom: { type: 'Point', coordinates: [1.4442, 43.6043] },
     address: 'Place du Capitole, Toulouse',
     status: 'published',
-    created_at: '2024-01-08T10:00:00.000Z',
+    created_at: '2024-11-03T10:00:00.000Z',
     vendor_name: 'Guides de Toulouse',
-    next_slot: '2024-12-12T15:00:00.000Z',
+    next_slot: '2025-12-12T14:00:00.000Z',
   },
   {
-    id: 'default-food-event',
-    vendor_id: 'default-organizer',
+    id: '33333333-3333-4333-8333-333333333333',
+    vendor_id: '10000000-0000-0000-0000-000000000003',
     title: 'Atelier cuisine occitane',
     description:
       'Apprenez à préparer un menu de spécialités occitanes avec un chef local et repartez avec vos créations.',
@@ -117,13 +117,13 @@ const DEFAULT_EVENTS: EventWithExtras[] = [
     geom: { type: 'Point', coordinates: [1.4272, 43.5991] },
     address: 'Marché des Carmes, Toulouse',
     status: 'published',
-    created_at: '2024-01-12T11:30:00.000Z',
+    created_at: '2024-11-05T11:30:00.000Z',
     vendor_name: 'Les Toqués Toulousains',
-    next_slot: '2024-12-18T18:30:00.000Z',
+    next_slot: '2025-12-18T17:30:00.000Z',
   },
   {
-    id: 'default-games-event',
-    vendor_id: 'default-organizer',
+    id: '44444444-4444-4444-8444-444444444444',
+    vendor_id: '10000000-0000-0000-0000-000000000004',
     title: 'Soirée jeux de société',
     description:
       'Rencontrez d’autres joueurs autour d’une sélection de jeux modernes et classiques, encadrée par une animatrice.',
@@ -136,28 +136,9 @@ const DEFAULT_EVENTS: EventWithExtras[] = [
     geom: { type: 'Point', coordinates: [1.4398, 43.6007] },
     address: 'Ludothèque Quai des Savoirs, Toulouse',
     status: 'published',
-    created_at: '2024-01-15T19:00:00.000Z',
+    created_at: '2024-11-08T19:00:00.000Z',
     vendor_name: 'Association Meeples Occitans',
-    next_slot: '2024-12-20T20:00:00.000Z',
-  },
-  {
-    id: 'default-other-event',
-    vendor_id: 'default-organizer',
-    title: 'Café rencontre nouveaux arrivants',
-    description:
-      'Un moment convivial pour rencontrer des Toulousains et d’autres nouveaux arrivants autour d’un café.',
-    category: 'other',
-    image_url:
-      'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1200&q=80',
-    price_cents: 500,
-    currency: 'EUR',
-    max_places: 50,
-    geom: { type: 'Point', coordinates: [1.4329, 43.6087] },
-    address: 'Café Cour Saint-Georges, Toulouse',
-    status: 'published',
-    created_at: '2024-01-20T17:00:00.000Z',
-    vendor_name: 'Réseau Bienvenue à Toulouse',
-    next_slot: '2024-12-22T17:30:00.000Z',
+    next_slot: '2025-12-20T18:00:00.000Z',
   },
 ];
 
