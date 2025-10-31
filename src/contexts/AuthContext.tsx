@@ -1,100 +1,119 @@
-/* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import type { User, Session } from "@supabase/supabase-js";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import type { Session, User } from '@supabase/supabase-js';
+import { supabase, type Profile } from '@/lib/supabase';
 
-type Profile = {
-  id: string;
-  full_name: string;
-  avatar_url?: string;
-  bio?: string;
-};
+const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS ?? '')
+  .split(',')
+  .map((email) => email.trim().toLowerCase())
+  .filter(Boolean);
 
 type AuthContextValue = {
-  isAuthenticated: boolean;
+  session: Session | null;
   user: User | null;
   profile: Profile | null;
-  session: Session | null;
+  loading: boolean;
+  isVendor: boolean;
+  isUser: boolean;
+  isAdmin: boolean;
+  refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        // Fetch profile when user changes
-        if (session?.user) {
-          setTimeout(() => {
-            fetchProfile(session.user.id);
-          }, 0);
-        } else {
-          setProfile(null);
-        }
-      }
-    );
-
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
-
       if (error) throw error;
-      setProfile(data);
+      setProfile(data ?? null);
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      console.error('Failed to load profile', error);
+      setProfile(null);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, []);
 
-  const signOut = async () => {
+  useEffect(() => {
+    let mounted = true;
+
+    const getInitialSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!mounted) return;
+      setSession(data.session);
+      setUser(data.session?.user ?? null);
+      if (data.session?.user) {
+        await fetchProfile(data.session.user.id);
+      } else {
+        setLoading(false);
+      }
+    };
+
+    void getInitialSession();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+      if (nextSession?.user) {
+        void fetchProfile(nextSession.user.id);
+      } else {
+        setProfile(null);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      listener.subscription.unsubscribe();
+    };
+  }, [fetchProfile]);
+
+  const refreshProfile = useCallback(async () => {
+    if (user) {
+      await fetchProfile(user.id);
+    }
+  }, [fetchProfile, user]);
+
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut();
-  };
+    setProfile(null);
+  }, []);
 
-  const value = useMemo<AuthContextValue>(
-    () => ({
-      isAuthenticated: !!session,
+  const value = useMemo<AuthContextValue>(() => {
+    const email = user?.email?.toLowerCase() ?? '';
+    const isVendor = profile?.role_id === 1;
+    const isUser = profile?.role_id === 2;
+    const isAdmin = adminEmails.includes(email);
+
+    return {
+      session,
       user,
       profile,
-      session,
+      loading,
+      isVendor,
+      isUser,
+      isAdmin,
+      refreshProfile,
       signOut,
-    }),
-    [session, user, profile]
-  );
+    };
+  }, [session, user, profile, loading, refreshProfile, signOut]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    throw new Error('useAuth must be used within AuthProvider');
   }
-
-  return context;
+  return ctx;
 };
