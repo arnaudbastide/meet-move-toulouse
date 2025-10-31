@@ -65,13 +65,15 @@ interface Cluster {
 const CLUSTER_RADIUS_PX = 45;
 
 const DEFAULT_EVENTS: EventWithExtras[] = [
-  withCategoryIllustration({
+  {
     id: 'default-sport-event',
     vendor_id: 'default-organizer',
     title: 'Course du canal du Midi',
     description:
       'Un footing convivial le long du canal du Midi pour découvrir Toulouse en bougeant. Accessible à tous les niveaux.',
     category: 'sport',
+    image_url:
+      'https://images.unsplash.com/photo-1526404428533-89d0a83a84f7?auto=format&fit=crop&w=1200&q=80',
     price_cents: 0,
     currency: 'EUR',
     max_places: 40,
@@ -81,14 +83,16 @@ const DEFAULT_EVENTS: EventWithExtras[] = [
     created_at: '2024-01-05T09:00:00.000Z',
     vendor_name: 'Collectif Toulouse Sport',
     next_slot: '2024-12-08T09:30:00.000Z',
-  }),
-  withCategoryIllustration({
+  },
+  {
     id: 'default-culture-event',
     vendor_id: 'default-organizer',
     title: 'Balade culturelle au Capitole',
     description:
       'Une visite guidée du centre historique pour découvrir l’histoire du Capitole et des lieux emblématiques de Toulouse.',
     category: 'culture',
+    image_url:
+      'https://images.unsplash.com/photo-1505764706515-aa95265c5abc?auto=format&fit=crop&w=1200&q=80',
     price_cents: 1200,
     currency: 'EUR',
     max_places: 25,
@@ -98,14 +102,16 @@ const DEFAULT_EVENTS: EventWithExtras[] = [
     created_at: '2024-01-08T10:00:00.000Z',
     vendor_name: 'Guides de Toulouse',
     next_slot: '2024-12-12T15:00:00.000Z',
-  }),
-  withCategoryIllustration({
+  },
+  {
     id: 'default-food-event',
     vendor_id: 'default-organizer',
     title: 'Atelier cuisine occitane',
     description:
       'Apprenez à préparer un menu de spécialités occitanes avec un chef local et repartez avec vos créations.',
     category: 'food',
+    image_url:
+      'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80',
     price_cents: 3500,
     currency: 'EUR',
     max_places: 16,
@@ -115,14 +121,16 @@ const DEFAULT_EVENTS: EventWithExtras[] = [
     created_at: '2024-01-12T11:30:00.000Z',
     vendor_name: 'Les Toqués Toulousains',
     next_slot: '2024-12-18T18:30:00.000Z',
-  }),
-  withCategoryIllustration({
+  },
+  {
     id: 'default-games-event',
     vendor_id: 'default-organizer',
     title: 'Soirée jeux de société',
     description:
       'Rencontrez d’autres joueurs autour d’une sélection de jeux modernes et classiques, encadrée par une animatrice.',
     category: 'games',
+    image_url:
+      'https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=1200&q=80',
     price_cents: 800,
     currency: 'EUR',
     max_places: 30,
@@ -132,14 +140,16 @@ const DEFAULT_EVENTS: EventWithExtras[] = [
     created_at: '2024-01-15T19:00:00.000Z',
     vendor_name: 'Association Meeples Occitans',
     next_slot: '2024-12-20T20:00:00.000Z',
-  }),
-  withCategoryIllustration({
+  },
+  {
     id: 'default-other-event',
     vendor_id: 'default-organizer',
     title: 'Café rencontre nouveaux arrivants',
     description:
       'Un moment convivial pour rencontrer des Toulousains et d’autres nouveaux arrivants autour d’un café.',
     category: 'other',
+    image_url:
+      'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1200&q=80',
     price_cents: 500,
     currency: 'EUR',
     max_places: 50,
@@ -149,7 +159,7 @@ const DEFAULT_EVENTS: EventWithExtras[] = [
     created_at: '2024-01-20T17:00:00.000Z',
     vendor_name: 'Réseau Bienvenue à Toulouse',
     next_slot: '2024-12-22T17:30:00.000Z',
-  }),
+  },
 ];
 
 const ClusteredMarkers: React.FC<{ markers: MarkerLocation[] }> = ({ markers }) => {
@@ -307,7 +317,7 @@ const IndexRoute: React.FC = () => {
           const next_slot = event.slots?.length
             ? event.slots.map((s) => s.start_at).sort()[0]
             : null;
-          return withCategoryIllustration({ ...event, vendor_name, next_slot });
+          return { ...event, vendor_name, next_slot };
         });
       } catch (error) {
         console.warn(
