@@ -4,21 +4,16 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, type EventRecord } from '@/lib/supabase';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EventCard } from '@/components/EventCard';
 import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/utils';
 import { useStripeOnboarding } from '@/hooks/useStripeOnboarding';
+import { useVendorAccount } from '@/hooks/useVendorAccount';
 
 interface EventWithStats extends EventRecord {
   slots?: { id: string; start_at: string; booked_places: number }[] | null;
   bookings?: { id: string; status: string; price_cents: number; net_payout_cents: number }[] | null;
-}
-
-interface VendorAccount {
-  profile_id: string;
-  onboarding_complete: boolean;
-  stripe_account_id: string;
 }
 
 const VendorDashboardRoute: React.FC = () => {
@@ -30,25 +25,16 @@ const VendorDashboardRoute: React.FC = () => {
     enabled: !!user,
     queryKey: ['vendor-events', user?.id],
     queryFn: async () => {
-      const [eventsResponse, vendorAccountResponse] = await Promise.all([
-        supabase
-          .from('events')
-          .select('*, slots:event_slots(*), bookings:bookings(*)')
-          .eq('vendor_id', user?.id ?? '')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('vendor_accounts')
-          .select('*')
-          .eq('profile_id', user!.id)
-          .maybeSingle(),
-      ]);
+      const eventsResponse = await supabase
+        .from('events')
+        .select('*, slots:event_slots(*), bookings:bookings(*)')
+        .eq('vendor_id', user?.id ?? '')
+        .order('created_at', { ascending: false });
 
       if (eventsResponse.error) throw eventsResponse.error;
-      if (vendorAccountResponse.error) throw vendorAccountResponse.error;
 
       return {
         events: (eventsResponse.data ?? []) as EventWithStats[],
-        vendorAccount: (vendorAccountResponse.data ?? null) as VendorAccount | null,
       };
     },
   });
@@ -58,10 +44,6 @@ const VendorDashboardRoute: React.FC = () => {
   }
 
   const events = eventsQuery.data?.events ?? [];
-  const vendorAccount = eventsQuery.data?.vendorAccount ?? null;
-  const onboardingComplete = vendorAccount?.onboarding_complete ?? false;
-
-  const { startOnboarding, starting } = useStripeOnboarding();
   const onboardingToastId = useRef<string | number | null>(null);
 
   useEffect(() => {
@@ -75,23 +57,8 @@ const VendorDashboardRoute: React.FC = () => {
     }
   }, [starting]);
 
-  const hasAccount = Boolean(account?.stripe_account_id);
   const onboardingComplete = Boolean(account?.onboarding_complete);
-  const onboardingStatusLabel = accountLoading
-    ? 'Chargement'
-    : onboardingComplete
-      ? 'Terminé'
-      : hasAccount
-        ? 'En attente'
-        : 'À démarrer';
-  const onboardingStatusVariant = accountLoading
-    ? 'outline'
-    : onboardingComplete
-      ? 'default'
-      : hasAccount
-        ? 'secondary'
-        : 'destructive';
-
+  const shouldRestrictContent = accountLoading || !onboardingComplete;
   const totals = useMemo(() => {
     const totalBookings = events.reduce((acc, event) => acc + (event.bookings?.length ?? 0), 0);
     const totalRevenue = events.reduce(
@@ -117,24 +84,28 @@ const VendorDashboardRoute: React.FC = () => {
             onClick={() => {
               void startOnboarding({ returnPath: '/vendor-dashboard' });
             }}
-            disabled={starting}
+            disabled={starting || accountLoading}
           >
-            {starting && <Loader2 className="size-4 animate-spin" />}
-            {starting ? 'Connexion à Stripe...' : 'Finaliser mon compte Stripe'}
+            {(starting || accountLoading) && <Loader2 className="size-4 animate-spin" />}
+            {accountLoading
+              ? 'Chargement du compte Stripe...'
+              : starting
+                ? 'Connexion à Stripe...'
+                : 'Finaliser mon compte Stripe'}
           </Button>
         )}
       </div>
 
       <div
-        className={`grid gap-4 sm:grid-cols-2 ${onboardingComplete ? '' : 'opacity-60'}`}
-        aria-disabled={!onboardingComplete}
+        className={`grid gap-4 sm:grid-cols-2 ${shouldRestrictContent ? 'opacity-60' : ''}`}
+        aria-disabled={shouldRestrictContent}
       >
         <Card>
           <CardHeader>
             <CardTitle>Total réservations</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">
-            {onboardingComplete ? totals.totalBookings : '—'}
+            {shouldRestrictContent ? '—' : totals.totalBookings}
           </CardContent>
         </Card>
         <Card>
@@ -142,12 +113,12 @@ const VendorDashboardRoute: React.FC = () => {
             <CardTitle>Revenus nets</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">
-            {onboardingComplete ? formatPrice(totals.totalRevenue, 'EUR') : '—'}
+            {shouldRestrictContent ? '—' : formatPrice(totals.totalRevenue, 'EUR')}
           </CardContent>
         </Card>
       </div>
 
-      {!onboardingComplete && (
+      {!accountLoading && !onboardingComplete && (
         <p className="rounded-md border border-dashed border-muted-foreground/40 bg-muted/30 p-4 text-sm text-muted-foreground">
           Finalisez votre onboarding Stripe pour débloquer la création et les statistiques de vos événements.
         </p>
@@ -164,7 +135,11 @@ const VendorDashboardRoute: React.FC = () => {
           );
 
           return (
-            <Card key={event.id} className={!onboardingComplete ? 'opacity-60' : undefined} aria-disabled={!onboardingComplete}>
+            <Card
+              key={event.id}
+              className={shouldRestrictContent ? 'opacity-60' : undefined}
+              aria-disabled={shouldRestrictContent}
+            >
               <CardHeader>
                 <CardTitle>{event.title}</CardTitle>
               </CardHeader>
@@ -173,15 +148,15 @@ const VendorDashboardRoute: React.FC = () => {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span>Créneaux publiés</span>
-                    <span>{onboardingComplete ? event.slots?.length ?? 0 : '—'}</span>
+                    <span>{shouldRestrictContent ? '—' : event.slots?.length ?? 0}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Places réservées</span>
-                    <span>{onboardingComplete ? `${totalBookedPlaces} / ${event.max_places}` : '—'}</span>
+                    <span>{shouldRestrictContent ? '—' : `${totalBookedPlaces} / ${event.max_places}`}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Revenu net</span>
-                    <span>{onboardingComplete ? eventRevenue : '—'}</span>
+                    <span>{shouldRestrictContent ? '—' : eventRevenue}</span>
                   </div>
                 </div>
               </CardContent>
@@ -190,9 +165,11 @@ const VendorDashboardRoute: React.FC = () => {
         })}
         {events.length === 0 && (
           <p className="text-muted-foreground">
-            {onboardingComplete
-              ? 'Créez votre premier événement pour voir les statistiques.'
-              : 'Terminez votre onboarding Stripe pour commencer à publier vos événements.'}
+            {accountLoading
+              ? 'Chargement des informations Stripe...'
+              : onboardingComplete
+                ? 'Créez votre premier événement pour voir les statistiques.'
+                : 'Terminez votre onboarding Stripe pour commencer à publier vos événements.'}
           </p>
         )}
       </div>
