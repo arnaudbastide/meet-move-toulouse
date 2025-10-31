@@ -30,119 +30,63 @@ values
   ('10000000-0000-0000-0000-000000000004', 'acct_demo_jeux', true)
   on conflict (profile_id) do nothing;
 
--- Seed demo events for the catalogue (mirrors DEFAULT_EVENTS fallback)
-insert into events (id, vendor_id, title, description, category, price_cents, currency, max_places, geom, address, status)
+-- Seed demo events for the catalogue
+insert into events (id, vendor_id, title, description, category, price_cents, currency, max_places, geom, address)
 values
   (
-    '11111111-1111-4111-8111-111111111111',
-    '10000000-0000-0000-0000-000000000001',
-    'Course du canal du Midi',
-    'Un footing convivial le long du canal du Midi pour découvrir Toulouse en bougeant. Accessible à tous les niveaux.',
-    'sport',
-    0,
-    'EUR',
-    40,
-    st_setsrid(st_makepoint(1.4526, 43.6045), 4326),
-    'Port Saint-Sauveur, Toulouse',
-    'published'
-  ),
-  (
-    '22222222-2222-4222-8222-222222222222',
-    '10000000-0000-0000-0000-000000000002',
-    'Balade culturelle au Capitole',
-    'Une visite guidée du centre historique pour découvrir l’histoire du Capitole et des lieux emblématiques de Toulouse.',
+    '11111111-1111-1111-1111-111111111111',
+    '00000000-0000-0000-0000-000000000001',
+    'Balade photo au centre de Toulouse',
+    'Partez pour une promenade guidée dans les ruelles toulousaines afin de perfectionner votre œil de photographe.',
     'culture',
-    1200,
+    2500,
     'EUR',
-    25,
-    st_setsrid(st_makepoint(1.4442, 43.6043), 4326),
-    'Place du Capitole, Toulouse',
-    'published'
+    12,
+    st_setsrid(st_makepoint(1.444209, 43.604652), 4326),
+    'Place du Capitole, 31000 Toulouse'
   ),
   (
-    '33333333-3333-4333-8333-333333333333',
-    '10000000-0000-0000-0000-000000000003',
-    'Atelier cuisine occitane',
-    'Apprenez à préparer un menu de spécialités occitanes avec un chef local et repartez avec vos créations.',
+    '22222222-2222-2222-2222-222222222222',
+    '00000000-0000-0000-0000-000000000001',
+    'Atelier de pâtisserie occitane',
+    'Réalisez les meilleures spécialités sucrées de la région avec un chef local et repartez avec vos créations.',
     'food',
-    3500,
+    4500,
     'EUR',
-    16,
-    st_setsrid(st_makepoint(1.4272, 43.5991), 4326),
-    'Marché des Carmes, Toulouse',
-    'published'
-  ),
-  (
-    '44444444-4444-4444-8444-444444444444',
-    '10000000-0000-0000-0000-000000000004',
-    'Soirée jeux de société',
-    'Rencontrez d’autres joueurs autour d’une sélection de jeux modernes et classiques, encadrée par une animatrice.',
-    'games',
-    800,
-    'EUR',
-    30,
-    st_setsrid(st_makepoint(1.4398, 43.6007), 4326),
-    'Ludothèque Quai des Savoirs, Toulouse',
-    'published'
+    8,
+    st_setsrid(st_makepoint(1.452362, 43.603444), 4326),
+    '12 Rue des Arts, 31000 Toulouse'
   )
   on conflict (id) do nothing;
 
 insert into event_slots (id, event_id, start_at, end_at, booked_places)
 values
   (
-    '55555555-1111-4111-8111-555555555551',
-    '11111111-1111-4111-8111-111111111111',
-    '2025-12-08 09:30:00+01',
-    '2025-12-08 11:00:00+01',
+    'aaaaaaa1-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
+    '11111111-1111-1111-1111-111111111111',
+    '2025-06-01 08:00:00+02',
+    '2025-06-01 10:30:00+02',
     0
   ),
   (
-    '55555555-1111-4111-8111-555555555552',
-    '11111111-1111-4111-8111-111111111111',
-    '2025-12-15 09:30:00+01',
-    '2025-12-15 11:00:00+01',
+    'aaaaaaa2-aaaa-aaaa-aaaa-aaaaaaaaaaa2',
+    '11111111-1111-1111-1111-111111111111',
+    '2025-06-08 08:00:00+02',
+    '2025-06-08 10:30:00+02',
     0
   ),
   (
-    '66666666-2222-4222-8222-666666666661',
-    '22222222-2222-4222-8222-222222222222',
-    '2025-12-12 15:00:00+01',
-    '2025-12-12 17:00:00+01',
+    'bbbbbbb1-bbbb-bbbb-bbbb-bbbbbbbbbbb1',
+    '22222222-2222-2222-2222-222222222222',
+    '2025-06-05 14:00:00+02',
+    '2025-06-05 17:00:00+02',
     0
   ),
   (
-    '66666666-2222-4222-8222-666666666662',
-    '22222222-2222-4222-8222-222222222222',
-    '2025-12-19 15:00:00+01',
-    '2025-12-19 17:00:00+01',
-    0
-  ),
-  (
-    '77777777-3333-4333-8333-777777777771',
-    '33333333-3333-4333-8333-333333333333',
-    '2025-12-18 18:30:00+01',
-    '2025-12-18 20:30:00+01',
-    0
-  ),
-  (
-    '77777777-3333-4333-8333-777777777772',
-    '33333333-3333-4333-8333-333333333333',
-    '2025-12-21 18:30:00+01',
-    '2025-12-21 20:30:00+01',
-    0
-  ),
-  (
-    '88888888-4444-4444-8444-888888888881',
-    '44444444-4444-4444-8444-444444444444',
-    '2025-12-20 19:00:00+01',
-    '2025-12-20 22:30:00+01',
-    0
-  ),
-  (
-    '88888888-4444-4444-8444-888888888882',
-    '44444444-4444-4444-8444-444444444444',
-    '2025-12-27 19:00:00+01',
-    '2025-12-27 22:30:00+01',
+    'bbbbbbb2-bbbb-bbbb-bbbb-bbbbbbbbbbb2',
+    '22222222-2222-2222-2222-222222222222',
+    '2025-06-12 14:00:00+02',
+    '2025-06-12 17:00:00+02',
     0
   )
   on conflict (id) do nothing;
