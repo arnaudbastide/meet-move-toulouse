@@ -122,7 +122,8 @@ const CreateRoute: React.FC = () => {
   }
 
   const onboardingComplete = Boolean(account?.onboarding_complete);
-  const creationLocked = accountLoading || !onboardingComplete;
+  const hasVendorAccount = Boolean(account);
+  const creationLocked = accountLoading || (hasVendorAccount && !onboardingComplete);
   const isSubmitting = mutation.isPending;
 
   return (
@@ -132,7 +133,7 @@ const CreateRoute: React.FC = () => {
           <CardTitle>Publier une nouvelle expérience</CardTitle>
         </CardHeader>
         <CardContent>
-          {creationLocked && (
+          {(accountLoading || !onboardingComplete) && (
             <div className="mb-6 rounded-md border border-dashed border-muted-foreground/40 bg-muted/30 p-4 text-sm text-muted-foreground">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p>
