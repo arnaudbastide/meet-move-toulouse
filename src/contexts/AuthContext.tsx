@@ -7,6 +7,8 @@ type AuthContextValue = {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
+  profileLoading: boolean;
+  roleLoading: boolean;
   isVendor: boolean;
   isUser: boolean;
   isAdmin: boolean;
@@ -151,13 +153,15 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       user,
       profile,
       loading,
+      profileLoading,
+      roleLoading,
       isVendor,
       isUser,
       isAdmin,
       refreshProfile,
       signOut,
     };
-  }, [session, user, profile, loading, refreshProfile, signOut, isAdmin]);
+  }, [session, user, profile, loading, profileLoading, roleLoading, refreshProfile, signOut, isAdmin]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
