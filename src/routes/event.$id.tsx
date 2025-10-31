@@ -12,7 +12,7 @@ const fetchEvent = async (id: string): Promise<Event | null> => {
     .from('events')
     .select(`
       *,
-      profiles:vendor_id (
+      profiles (
         name,
         avatar_url
       )
