@@ -13,7 +13,6 @@ const fetchEvents = async (): Promise<Event[]> => {
         avatar_url
       )
     `)
-    .eq('status', 'published')
     .order('created_at', { ascending: false });
 
   if (error) {

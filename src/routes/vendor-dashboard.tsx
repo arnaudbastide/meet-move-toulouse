@@ -83,7 +83,9 @@ const VendorDashboardRoute = () => {
             {events?.map((event) => (
               <div key={event.id} className="p-4 border rounded-md">
                 <h3 className="font-semibold">{event.title}</h3>
-                <p>{event.status}</p>
+                <p className="text-sm text-muted-foreground">
+                  Created {new Date(event.created_at).toLocaleDateString()}
+                </p>
               </div>
             ))}
           </div>

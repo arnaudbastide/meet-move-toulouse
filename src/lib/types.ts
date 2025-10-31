@@ -9,7 +9,6 @@ export interface Event {
   max_places: number;
   geom: any;
   address: string;
-  status: string;
   created_at: string;
   profiles: {
     full_name: string;
