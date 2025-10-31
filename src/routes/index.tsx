@@ -72,8 +72,7 @@ const DEFAULT_EVENTS: EventWithExtras[] = [
     description:
       'Un footing convivial le long du canal du Midi pour découvrir Toulouse en bougeant. Accessible à tous les niveaux.',
     category: 'sport',
-    image_url:
-      'https://images.unsplash.com/photo-1526404428533-89d0a83a84f7?auto=format&fit=crop&w=1200&q=80',
+    image_url: '/images/course-canal-du-midi.svg',
     price_cents: 0,
     currency: 'EUR',
     max_places: 40,
