@@ -91,39 +91,6 @@ describe('useInitiateBooking', () => {
       expect.objectContaining({ method: 'POST' }),
     );
 
-    expect(rpcMock).not.toHaveBeenCalled();
-
-    queryClient.clear();
-  });
-
-  it('cancels the booking if attaching the transfer fails', async () => {
-    fetchMock
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ clientSecret: 'secret', paymentIntentId: 'pi_123' }),
-      })
-      .mockResolvedValueOnce({
-        ok: false,
-        json: async () => ({ error: 'attach failed' }),
-      });
-
-    mutateAsyncMock.mockResolvedValue('booking-id');
-
-    const queryClient = new QueryClient();
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-
-    const { result } = renderHook(() => useInitiateBooking(), { wrapper });
-
-    await expect(
-      act(async () => {
-        await result.current.mutateAsync({ slotId: 'slot-123', customerEmail: 'user@example.com' });
-      }),
-    ).rejects.toThrow('attach failed');
-
-    expect(rpcMock).toHaveBeenCalledWith('cancel_booking', { p_booking_id: 'booking-id' });
-
     queryClient.clear();
   });
 });

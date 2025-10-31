@@ -154,23 +154,11 @@ app.post('/attach-booking-transfer', async (req, res) => {
       return res.status(400).json({ error: 'Payment intent mismatch for booking' });
     }
 
-    const existingIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-
-    const metadata: Stripe.MetadataParam = {
-      booking_id: bookingId,
-    };
-
-    if (existingIntent.metadata) {
-      for (const [key, value] of Object.entries(existingIntent.metadata)) {
-        if (value !== null && key !== 'booking_id') {
-          metadata[key] = value;
-        }
-      }
-    }
-
     const intent = await stripe.paymentIntents.update(paymentIntentId, {
       transfer_group: bookingId,
-      metadata,
+      metadata: {
+        booking_id: bookingId,
+      },
     });
 
     res.json({ transferGroup: intent.transfer_group });

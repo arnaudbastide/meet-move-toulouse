@@ -71,15 +71,6 @@ export const useInitiateBooking = () => {
           throw new Error(attachPayload.error ?? 'Échec du rattachement du paiement à la réservation.');
         }
       } catch (error) {
-        try {
-          const { error: cancelError } = await supabase.rpc('cancel_booking', { p_booking_id: bookingId });
-          if (cancelError) {
-            console.error('cancel_booking after transfer attach failure returned error', cancelError);
-          }
-        } catch (cancelError) {
-          console.error('cancel_booking after transfer attach failure threw', cancelError);
-        }
-
         const message = error instanceof Error ? error.message : 'Échec du rattachement du paiement à la réservation.';
         throw new Error(message);
       }
