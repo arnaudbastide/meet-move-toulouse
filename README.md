@@ -64,7 +64,12 @@ L'application est servie sur http://localhost:5173.
 
 2. **Lancer le serveur de fonctions Stripe**
    ```bash
-   node functions/index.ts
+   npm run functions:dev
+   ```
+
+   Utilisez `PORT` pour changer le port local (par défaut `8787`). Un script de vérification rapide est disponible :
+   ```bash
+   npm run functions:health
    ```
 
 3. **Forwarder les webhooks avec Stripe CLI**
@@ -73,7 +78,43 @@ L'application est servie sur http://localhost:5173.
      --forward-to http://localhost:8787/webhook
    ```
 
-4. **Onboarding vendor**
+4. **Tester les endpoints HTTP**
+
+   ```bash
+   # Healthcheck
+   curl http://localhost:8787/health
+
+   # Créer un lien d'onboarding Stripe Express
+   curl -X POST http://localhost:8787/create-account-link \
+     -H 'Content-Type: application/json' \
+     -d '{
+       "profileId": "<vendor-profile-id>",
+       "refreshUrl": "http://localhost:5173/vendor-dashboard",
+       "returnUrl": "http://localhost:5173/vendor-dashboard",
+       "email": "vendor@example.com"
+     }'
+
+   # Créer un PaymentIntent (l'entête Idempotency-Key est optionnelle mais recommandée)
+   curl -X POST http://localhost:8787/create-payment-intent \
+     -H 'Content-Type: application/json' \
+     -H 'Idempotency-Key: slot-<slot-id>-user@example.com' \
+     -d '{
+       "slotId": "<slot-id>",
+       "customerEmail": "user@example.com"
+     }'
+
+   # Attacher un booking à un PaymentIntent (après l'appel RPC book_slot)
+   curl -X POST http://localhost:8787/attach-booking-transfer \
+     -H 'Content-Type: application/json' \
+     -d '{
+       "bookingId": "<booking-id>",
+       "paymentIntentId": "<pi-id>"
+     }'
+   ```
+
+   Pour simuler les webhooks Stripe côté local, utilisez la commande Stripe CLI ci-dessus ou `stripe trigger payment_intent.succeeded`.
+
+5. **Onboarding vendor**
    - Utilisez l'endpoint `/create-account-link` pour créer l'URL d'onboarding Stripe Express.
    - Dans l'application, ouvrez le tableau vendor (`/vendor-dashboard`) et utilisez la carte « Statut Stripe » pour démarrer ou
      reprendre l'onboarding depuis l'interface.
