@@ -1,150 +1,210 @@
 import express from 'express';
+import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
-import { fileURLToPath } from 'node:url';
-import type { Request, Response, NextFunction } from 'express';
-import { assertRequiredEnv } from './lib/env.js';
-import { createSupabaseServiceClient, type SupabaseServiceClient } from './lib/supabase.js';
-import { withRequestId, logError } from './lib/logger.js';
-import { sendError } from './lib/responses.js';
-import { RequestError } from './lib/errors.js';
-import { createAccountLinkSchema, createPaymentIntentSchema, attachBookingTransferSchema } from './lib/validation.js';
-import { createAccountLink } from './stripe/onboarding.js';
-import { attachBookingTransfer, createPaymentIntent } from './stripe/payments.js';
-import { createWebhookHandler } from './stripe/webhook.js';
+import { z } from 'zod';
 
-declare module 'express-serve-static-core' {
-  interface Response {
-    locals: Record<string, unknown> & { requestContext: ReturnType<typeof withRequestId> };
-  }
-}
+const app = express();
+const port = process.env.PORT || 8787;
 
-export function createApp(dependencies?: {
-  stripe?: Stripe;
-  webhookSecret?: string;
-  supabase?: SupabaseServiceClient;
-}) {
-  const env = assertRequiredEnv();
-  const stripe =
-    dependencies?.stripe ?? new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: '2024-11-20' });
-  const webhookSecret = dependencies?.webhookSecret ?? env.STRIPE_WEBHOOK_SECRET;
-  const supabase = dependencies?.supabase ?? createSupabaseServiceClient(env);
+// Middleware
+app.use(express.json());
 
-  const app = express();
+// Environment variables
+const supabaseUrl = process.env.SUPABASE_URL!;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY!;
+const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    const context = withRequestId(req, res);
-    res.locals.requestContext = context;
-    next();
-  });
+// Clients
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+const stripe = new Stripe(stripeSecretKey, { apiVersion: '2023-10-16' });
 
-  app.use((req, res, next) => {
-    if (req.originalUrl === '/webhook') {
-      return next();
-    }
-    return express.json({ limit: '1mb' })(req, res, next);
-  });
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ ok: true });
+});
 
-  const deps = { stripe, supabase } as const;
+// Create Stripe account link
+const createAccountLinkSchema = z.object({
+  profileId: z.string().uuid(),
+  email: z.string().email(),
+  refreshUrl: z.string().url(),
+  returnUrl: z.string().url(),
+});
 
-  app.get('/health', (_req, res) => {
-    res.json({ ok: true });
-  });
+app.post('/create-account-link', async (req, res) => {
+  try {
+    const { profileId, email, refreshUrl, returnUrl } = createAccountLinkSchema.parse(req.body);
 
-  app.post('/create-account-link', async (req, res) => {
-    const parsed = createAccountLinkSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid payload', code: 'invalid_request' });
-    }
+    let { data: vendorAccount } = await supabase
+      .from('vendor_accounts')
+      .select('stripe_account_id')
+      .eq('profile_id', profileId)
+      .single();
 
-    try {
-      const result = await createAccountLink(parsed.data, deps, res.locals.requestContext);
-      return res.json(result);
-    } catch (error) {
-      return handleHandlerError(error, res);
-    }
-  });
+    if (!vendorAccount) {
+      const account = await stripe.accounts.create({
+        type: 'express',
+        email,
+      });
 
-  app.post('/create-payment-intent', async (req, res) => {
-    const parsed = createPaymentIntentSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid payload', code: 'invalid_request' });
+      const { error } = await supabase.from('vendor_accounts').insert({
+        profile_id: profileId,
+        stripe_account_id: account.id,
+        onboarding_complete: false,
+      });
+
+      if (error) throw error;
+
+      vendorAccount = { stripe_account_id: account.id };
     }
 
-    const idempotencyKey = req.header('idempotency-key') ?? res.locals.requestContext.requestId;
-
-    try {
-      const result = await createPaymentIntent(
-        { ...parsed.data, idempotencyKey },
-        deps,
-        res.locals.requestContext,
-      );
-      return res.json(result);
-    } catch (error) {
-      return handleHandlerError(error, res);
-    }
-  });
-
-  app.post('/attach-booking-transfer', async (req, res) => {
-    const parsed = attachBookingTransferSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid payload', code: 'invalid_request' });
-    }
-
-    try {
-      const result = await attachBookingTransfer(parsed.data, deps, res.locals.requestContext);
-      return res.json(result);
-    } catch (error) {
-      return handleHandlerError(error, res);
-    }
-  });
-
-  app.post(
-    '/webhook',
-    express.raw({ type: 'application/json' }),
-    createWebhookHandler({ stripe, supabase, webhookSecret }),
-  );
-
-  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    logError('Unhandled error', res.locals.requestContext, {
-      error: err instanceof Error ? err.message : 'unknown_error',
+    const accountLink = await stripe.accountLinks.create({
+      account: vendorAccount.stripe_account_id,
+      refresh_url: refreshUrl,
+      return_url: returnUrl,
+      type: 'account_onboarding',
     });
-    if (err instanceof RequestError) {
-      return sendError(res, err);
-    }
-    return res.status(500).json({ error: 'Internal server error' });
-  });
 
-  return app;
-}
+    res.json({ url: accountLink.url });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ error: 'Failed to create account link' });
+  }
+});
 
-function handleHandlerError(error: unknown, res: Response): Response {
-  if (error instanceof RequestError) {
-    logError('Request error', res.locals.requestContext, {
-      error: error.message,
-      code: error.code,
+// Create Payment Intent
+const createPaymentIntentSchema = z.object({
+  slotId: z.string().uuid(),
+  customerEmail: z.string().email().optional(),
+});
+
+app.post('/create-payment-intent', async (req, res) => {
+  try {
+    const { slotId, customerEmail } = createPaymentIntentSchema.parse(req.body);
+
+    const { data: slot, error: slotError } = await supabase
+      .from('event_slots')
+      .select('*, events(*, vendor_accounts(stripe_account_id))')
+      .eq('id', slotId)
+      .single();
+
+    if (slotError || !slot) throw new Error('Slot not found');
+
+    const { events: event } = slot;
+    if (!event) throw new Error('Event not found');
+
+    const { vendor_accounts: vendorAccount } = event;
+    if (!vendorAccount) throw new Error('Vendor account not found');
+
+    const platformFee = Math.ceil(event.price_cents * 0.1);
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: event.price_cents,
+      currency: event.currency || 'eur',
+      application_fee_amount: platformFee,
+      transfer_data: {
+        destination: vendorAccount.stripe_account_id,
+      },
+      metadata: {
+        slot_id: slotId,
+        event_id: event.id,
+      },
     });
-    return sendError(res, error);
+
+    res.json({
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ error: 'Failed to create payment intent' });
+  }
+});
+
+// Attach booking transfer
+const attachBookingTransferSchema = z.object({
+  bookingId: z.string().uuid(),
+  paymentIntentId: z.string(),
+});
+
+app.post('/attach-booking-transfer', async (req, res) => {
+  try {
+    const { bookingId, paymentIntentId } = attachBookingTransferSchema.parse(req.body);
+
+    await stripe.paymentIntents.update(paymentIntentId, {
+      metadata: { booking_id: bookingId },
+      transfer_group: bookingId,
+    });
+
+    res.json({ transferGroup: bookingId });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ error: 'Failed to attach booking transfer' });
+  }
+});
+
+// Stripe Webhook
+app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature']!;
+
+  let event: Stripe.Event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, stripeWebhookSecret);
+  } catch (err: any) {
+    res.status(400).send(`Webhook Error: ${err.message}`);
+    return;
   }
 
-  logError('Unexpected error', res.locals.requestContext, {
-    error: error instanceof Error ? error.message : 'unknown_error',
-  });
-  return res.status(500).json({ error: 'Internal server error' });
-}
+  try {
+    switch (event.type) {
+      case 'account.updated': {
+        const account = event.data.object as Stripe.Account;
+        await supabase
+          .from('vendor_accounts')
+          .update({ onboarding_complete: account.details_submitted })
+          .eq('stripe_account_id', account.id);
+        break;
+      }
+      case 'payment_intent.succeeded': {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        if (paymentIntent.metadata.booking_id) {
+          await supabase
+            .from('bookings')
+            .update({ status: 'booked' })
+            .eq('id', paymentIntent.metadata.booking_id);
+        }
+        break;
+      }
+      case 'payment_intent.payment_failed': {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        if (paymentIntent.metadata.booking_id) {
+          await supabase
+            .from('bookings')
+            .update({ status: 'cancelled' })
+            .eq('id', paymentIntent.metadata.booking_id);
+        }
+        break;
+      }
+      case 'charge.refunded': {
+        const charge = event.data.object as Stripe.Charge;
+        if (charge.metadata.booking_id) {
+          await supabase
+            .from('bookings')
+            .update({ status: 'cancelled' })
+            .eq('id', charge.metadata.booking_id);
+        }
+        break;
+      }
+    }
+    res.json({ received: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Webhook handler failed' });
+  }
+});
 
-const isDirectRun = (() => {
-  const current = fileURLToPath(import.meta.url);
-  const executed = process.argv[1];
-  return executed ? current === executed : false;
-})();
-
-const appInstance = createApp();
-
-if (isDirectRun) {
-  const port = Number.parseInt(process.env.PORT ?? '8787', 10);
-  appInstance.listen(port, () => {
-    console.log(`Stripe functions listening on port ${port}`);
-  });
-}
-
-export default appInstance;
+app.listen(port, () => {
+  console.log(`Functions server listening on port ${port}`);
+});

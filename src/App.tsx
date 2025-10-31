@@ -22,51 +22,35 @@ const App: React.FC = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <ReactQueryDevtools initialIsOpen={false} position="bottom-right" />
+      <ReactQueryDevtools initialIsOpen={false} />
       <AuthProvider>
         <BrowserRouter>
           <div className="flex min-h-screen flex-col bg-background text-foreground">
             <Navbar />
-            <div className="flex-1">
+            <main className="flex-1">
               <Routes>
                 <Route path="/" element={<IndexRoute />} />
                 <Route
                   path="/create"
-                  element={(
-                    <VendorOnly>
-                      <CreateRoute />
-                    </VendorOnly>
-                  )}
+                  element={<VendorOnly><CreateRoute /></VendorOnly>}
                 />
                 <Route path="/event/:id" element={<EventDetailRoute />} />
                 <Route
                   path="/bookings"
-                  element={(
-                    <UserOnly>
-                      <BookingsRoute />
-                    </UserOnly>
-                  )}
+                  element={<UserOnly><BookingsRoute /></UserOnly>}
                 />
                 <Route
                   path="/vendor-dashboard"
-                  element={(
-                    <VendorOnly>
-                      <VendorDashboardRoute />
-                    </VendorOnly>
-                  )}
+                  element={<VendorOnly><VendorDashboardRoute /></VendorOnly>}
                 />
                 <Route
                   path="/admin"
-                  element={(
-                    <AdminOnly>
-                      <AdminRoute />
-                    </AdminOnly>
-                  )}
+                  element={<AdminOnly><AdminRoute /></AdminOnly>}
                 />
                 <Route path="/auth" element={<AuthRoute />} />
-                <Route path="*" element={<IndexRoute />} />
+                <Route path="*" element={<div>Not Found</div>} />
               </Routes>
-            </div>
+            </main>
           </div>
         </BrowserRouter>
       </AuthProvider>

@@ -2,14 +2,9 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
-import { componentTagger } from 'lovable-tagger';
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
-  server: {
-    host: "::",
-    port: 8080,
-  },
+export default defineConfig({
   plugins: [
     react(),
     VitePWA({
@@ -35,11 +30,10 @@ export default defineConfig(({ mode }) => ({
         navigateFallback: '/index.html',
       },
     }),
-    mode === 'development' && componentTagger(),
-  ].filter(Boolean),
+  ],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      '@': path.resolve(__dirname, './src'),
     },
   },
   test: {
@@ -47,4 +41,4 @@ export default defineConfig(({ mode }) => ({
     environment: 'jsdom',
     setupFiles: './src/tests/setup.ts',
   },
-}));
+});

@@ -1,48 +1,48 @@
-import { Navigate, useLocation } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-
-type Role = 'vendor' | 'user' | 'admin';
+import { Navigate } from 'react-router-dom';
 
 interface RoleGuardProps {
-  role: Role;
-  children: React.ReactNode;
+  children: JSX.Element;
+  roleId: number;
 }
 
-const RoleGuard: React.FC<RoleGuardProps> = ({ role, children }) => {
-  const location = useLocation();
-  const { loading, isVendor, isUser, isAdmin } = useAuth();
+const RoleGuard = ({ children, roleId }: RoleGuardProps) => {
+  const { profile, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <Loader2 className="size-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <div>Loading...</div>; // Or a spinner component
   }
 
-  const allowed =
-    (role === 'vendor' && isVendor) ||
-    (role === 'user' && isUser) ||
-    (role === 'admin' && isAdmin);
-
-  if (!allowed) {
-    return <Navigate to="/" replace state={{ from: location }} />;
+  if (!profile || profile.role_id !== roleId) {
+    return <Navigate to="/" />;
   }
 
-  return <>{children}</>;
+  return children;
 };
 
-export const VendorOnly: React.FC<Omit<RoleGuardProps, 'role'>> = ({ children }) => (
-  <RoleGuard role="vendor">{children}</RoleGuard>
+export const VendorOnly = ({ children }: { children: JSX.Element }) => (
+  <RoleGuard roleId={1}>{children}</RoleGuard>
 );
 
-export const UserOnly: React.FC<Omit<RoleGuardProps, 'role'>> = ({ children }) => (
-  <RoleGuard role="user">{children}</RoleGuard>
+export const UserOnly = ({ children }: { children: JSX.Element }) => (
+  <RoleGuard roleId={2}>{children}</RoleGuard>
 );
 
-export const AdminOnly: React.FC<Omit<RoleGuardProps, 'role'>> = ({ children }) => (
-  <RoleGuard role="admin">{children}</RoleGuard>
-);
+// This is a placeholder. You should implement a proper admin check.
+export const AdminOnly = ({ children }: { children: JSX.Element }) => {
+  const { profile, loading } = useAuth();
 
-export default RoleGuard;
+  if (loading) {
+    return <div>Loading...</div>; // Or a spinner component
+  }
+
+  // In a real app, you'd have a more robust way to check for admin role.
+  // This is just an example.
+  const isAdmin = profile && profile.email === 'admin@example.com';
+
+  if (!isAdmin) {
+    return <Navigate to="/" />;
+  }
+
+  return children;
+};

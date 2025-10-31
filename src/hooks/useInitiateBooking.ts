@@ -1,84 +1,44 @@
 import { useMutation } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
-import { getFunctionsBaseUrl } from '@/lib/utils';
-import { useBookSlot } from './useBookSlot';
+import { loadStripe } from '@stripe/stripe-js';
 
-interface InitiateBookingVariables {
-  slotId: string;
-  customerEmail?: string;
-}
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
-interface InitiateBookingResult {
-  clientSecret: string;
-  paymentIntentId: string;
-}
+const initiateBooking = async ({ slotId, customerEmail }: { slotId: string; customerEmail: string; }) => {
+  const functionsUrl = import.meta.env.VITE_FUNCTIONS_URL;
+  const res = await fetch(`${functionsUrl}/create-payment-intent`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ slotId, customerEmail }),
+  });
 
-const buildFunctionsUrl = (path: string) => `${getFunctionsBaseUrl()}${path}`;
+  if (!res.ok) {
+    throw new Error('Failed to create payment intent');
+  }
+
+  const { clientSecret, paymentIntentId } = await res.json();
+
+  const stripe = await stripePromise;
+  if (!stripe) {
+    throw new Error('Stripe.js has not loaded yet.');
+  }
+
+  return { stripe, clientSecret, paymentIntentId };
+};
 
 export const useInitiateBooking = () => {
-  const bookSlot = useBookSlot();
-
-  return useMutation<InitiateBookingResult, Error, InitiateBookingVariables>({
-    mutationKey: ['initiate-booking'],
-    mutationFn: async ({ slotId, customerEmail }) => {
-      let response: Response;
-
-      try {
-        response = await fetch(buildFunctionsUrl('/create-payment-intent'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slotId, customerEmail }),
-        });
-      } catch (error) {
-        console.error('create-payment-intent network error', error);
-        throw new Error('Impossible de contacter le service de paiement.');
-      }
-
-      let payload: Partial<InitiateBookingResult> & { error?: string } = {};
-      try {
-        payload = await response.json();
-      } catch (error) {
-        console.error('create-payment-intent parse error', error);
-      }
-
-      if (!response.ok || !payload.clientSecret || !payload.paymentIntentId) {
-        throw new Error(payload.error ?? "La création de l'intention de paiement a échoué.");
-      }
-
-      let bookingId: string;
-      try {
-        bookingId = await bookSlot.mutateAsync({ slotId, paymentIntentId: payload.paymentIntentId });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'La réservation a échoué.';
-        throw new Error(message);
-      }
-
-      try {
-        const attachResponse = await fetch(buildFunctionsUrl('/attach-booking-transfer'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paymentIntentId: payload.paymentIntentId, bookingId }),
-        });
-
-        let attachPayload: { transferGroup?: string; error?: string } = {};
-        try {
-          attachPayload = await attachResponse.json();
-        } catch (error) {
-          console.error('attach-booking-transfer parse error', error);
-        }
-
-        if (!attachResponse.ok || !attachPayload.transferGroup) {
-          throw new Error(attachPayload.error ?? 'Échec du rattachement du paiement à la réservation.');
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Échec du rattachement du paiement à la réservation.';
-        throw new Error(message);
-      }
-
-      return {
-        clientSecret: payload.clientSecret,
-        paymentIntentId: payload.paymentIntentId,
-      } as InitiateBookingResult;
+  return useMutation({
+    mutationFn: initiateBooking,
+    onSuccess: async ({ stripe, clientSecret, paymentIntentId }) => {
+      // Here you would typically redirect to a checkout page
+      // or use stripe.confirmCardPayment(clientSecret, ...)
+      console.log('Payment intent created:', paymentIntentId);
+      alert('Redirecting to payment...');
+    },
+    onError: (error) => {
+      console.error(error);
+      alert('Booking failed!');
     },
   });
 };
