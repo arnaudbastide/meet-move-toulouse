@@ -15,9 +15,14 @@ interface VendorAccountRow {
   } | null;
 }
 
+interface AdminEmailRow {
+  email: string;
+}
+
 const AdminRoute: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'complete'>('all');
-  const { data, isLoading } = useQuery({
+
+  const vendorAccountsQuery = useQuery({
     queryKey: ['admin', 'vendor-accounts'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -28,18 +33,30 @@ const AdminRoute: React.FC = () => {
     },
   });
 
+  const adminEmailsQuery = useQuery({
+    queryKey: ['admin', 'emails'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('admin_emails')
+        .select('email')
+        .order('email');
+      if (error) throw error;
+      return (data ?? []) as AdminEmailRow[];
+    },
+  });
+
   const pendingCount = useMemo(
-    () => (data ?? []).filter((row) => !row.onboarding_complete).length,
-    [data],
+    () => (vendorAccountsQuery.data ?? []).filter((row) => !row.onboarding_complete).length,
+    [vendorAccountsQuery.data],
   );
 
   const filteredData = useMemo(() => {
-    if (!data) return [] as VendorAccountRow[];
+    const data = vendorAccountsQuery.data ?? [];
     if (statusFilter === 'all') return data;
     return data.filter((row) =>
       statusFilter === 'complete' ? Boolean(row.onboarding_complete) : !row.onboarding_complete,
     );
-  }, [data, statusFilter]);
+  }, [vendorAccountsQuery.data, statusFilter]);
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
@@ -69,8 +86,27 @@ const AdminRoute: React.FC = () => {
             </Select>
           </div>
         </CardHeader>
-        <CardContent>
-          {isLoading ? (
+        <CardContent className="space-y-6">
+          <section className="space-y-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Emails admin autorisés
+            </h2>
+            {adminEmailsQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Chargement...</p>
+            ) : (adminEmailsQuery.data ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">Aucun email admin configuré.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {(adminEmailsQuery.data ?? []).map((row) => (
+                  <Badge key={row.email} variant="outline" className="font-normal">
+                    {row.email}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {vendorAccountsQuery.isLoading ? (
             <p className="text-muted-foreground">Chargement...</p>
           ) : filteredData.length === 0 ? (
             <p className="text-muted-foreground">Aucun compte ne correspond à ce filtre.</p>
@@ -89,7 +125,9 @@ const AdminRoute: React.FC = () => {
                     <TableCell>{row.profile?.name ?? row.profile_id}</TableCell>
                     <TableCell className="font-mono text-xs">
                       {row.stripe_account_id ?? (
-                        <Badge variant="destructive" className="font-normal">À créer</Badge>
+                        <Badge variant="destructive" className="font-normal">
+                          À créer
+                        </Badge>
                       )}
                     </TableCell>
                     <TableCell>

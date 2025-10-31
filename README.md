@@ -51,6 +51,12 @@ L'application est servie sur http://localhost:5173.
    cp .env.example .env
    ```
    - `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` sont disponibles via `supabase status`.
+4. **Définir les emails admin**
+   Ajoutez les adresses autorisées dans la table `admin_emails` pour accéder à `/admin` :
+   ```sql
+   insert into admin_emails(email) values ('admin@example.com');
+   ```
+   Le fichier `supabase/seed.sql` ajoute déjà `admin@example.com`.
 
 ## Stripe
 1. **Variables d'environnement backend** (pour les fonctions Express / Edge Functions)
@@ -63,6 +69,11 @@ L'application est servie sur http://localhost:5173.
    ```bash
    node functions/index.ts
    ```
+
+   L'API expose trois endpoints :
+   - `POST /create-account-link` pour démarrer l'onboarding Connect Express
+   - `POST /create-payment-intent` pour créer une intention de paiement avec frais de plateforme
+   - `POST /sync-transfer-group` pour rattacher l'intention à une réservation (ajout automatique après l'appel RPC `book_slot`)
 
 3. **Forwarder les webhooks avec Stripe CLI**
    ```bash

@@ -65,9 +65,6 @@ describe('AuthContext', () => {
     });
 
     expect(fromMock).toHaveBeenCalledWith('profiles');
-    expect(rpcMock).toHaveBeenCalledWith('has_role', {
-      _role: 'admin',
-      _user_id: 'user-123',
-    });
+    expect(rpcMock).toHaveBeenCalledWith('is_admin');
   });
 });

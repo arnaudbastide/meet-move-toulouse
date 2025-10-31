@@ -7,13 +7,13 @@ const missingSupabaseConfig = !supabaseUrl || !supabaseAnonKey;
 
 if (missingSupabaseConfig) {
   console.warn(
-    'Supabase environment variables are missing. The client will be disabled until VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are provided.'
+    'Supabase environment variables are missing. The client will be disabled until VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are provided.',
   );
 }
 
 const createDisabledSupabaseClient = (): SupabaseClient => {
   const error = new Error(
-    'Supabase client is disabled because VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are not configured.'
+    'Supabase client is disabled because VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are not configured.',
   );
 
   const handler: ProxyHandler<Record<string, unknown>> = {
@@ -86,6 +86,7 @@ export interface BookingRecord {
   platform_fee_cents: number;
   net_payout_cents: number;
   payment_intent_id: string | null;
+  transfer_group: string | null;
   created_at: string;
 }
 

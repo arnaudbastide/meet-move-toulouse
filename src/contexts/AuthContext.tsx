@@ -109,10 +109,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       setRoleLoading(true);
 
       try {
-        const { data, error } = await supabase.rpc('has_role', {
-          _user_id: user.id,
-          _role: 'admin',
-        });
+        const { data, error } = await supabase.rpc('is_admin');
 
         if (cancelled) return;
 

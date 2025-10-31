@@ -127,6 +127,59 @@ app.post('/create-payment-intent', async (req, res) => {
   }
 });
 
+app.post('/sync-transfer-group', async (req, res) => {
+  try {
+    const { paymentIntentId, bookingId, slotId } = req.body as {
+      paymentIntentId?: string;
+      bookingId?: string;
+      slotId?: string;
+    };
+
+    if (!paymentIntentId || !bookingId) {
+      return res.status(400).json({ error: 'Missing paymentIntentId or bookingId' });
+    }
+
+    const { data: booking, error: bookingError } = await supabase
+      .from('bookings')
+      .select('slot_id, slot:event_slots(event_id)')
+      .eq('id', bookingId)
+      .maybeSingle();
+
+    if (bookingError) {
+      console.error('sync-transfer-group booking lookup error', bookingError);
+      return res.status(400).json({ error: 'Booking lookup failed' });
+    }
+
+    const eventId = booking?.slot?.event_id ?? null;
+    const resolvedSlotId = slotId ?? booking?.slot_id ?? null;
+
+    const metadata: Record<string, string> = {};
+    if (bookingId) metadata.booking_id = bookingId;
+    if (resolvedSlotId) metadata.slot_id = resolvedSlotId;
+    if (eventId) metadata.event_id = eventId;
+
+    await stripe.paymentIntents.update(paymentIntentId, {
+      transfer_group: bookingId,
+      metadata: metadata,
+    });
+
+    const { error: updateError } = await supabase
+      .from('bookings')
+      .update({ transfer_group: bookingId })
+      .eq('id', bookingId);
+
+    if (updateError) {
+      console.error('sync-transfer-group supabase update error', updateError);
+      return res.status(500).json({ error: 'Failed to persist transfer group' });
+    }
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('sync-transfer-group error', error);
+    res.status(400).json({ error: error.message ?? 'Unable to sync transfer group' });
+  }
+});
+
 app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   const signature = req.headers['stripe-signature'];
   let event: Stripe.Event;

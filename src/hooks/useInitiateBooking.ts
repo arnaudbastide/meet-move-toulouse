@@ -44,10 +44,32 @@ export const useInitiateBooking = () => {
         throw new Error(payload.error ?? "La création de l'intention de paiement a échoué.");
       }
 
+      let bookingId: string;
+
       try {
-        await bookSlot.mutateAsync({ slotId, paymentIntentId: payload.paymentIntentId });
+        bookingId = await bookSlot.mutateAsync({ slotId, paymentIntentId: payload.paymentIntentId });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'La réservation a échoué.';
+        throw new Error(message);
+      }
+
+      try {
+        const syncResponse = await fetch(buildFunctionsUrl('/sync-transfer-group'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            paymentIntentId: payload.paymentIntentId,
+            bookingId,
+            slotId,
+          }),
+        });
+
+        if (!syncResponse.ok) {
+          const syncPayload = await syncResponse.json().catch(() => ({ error: 'unknown' }));
+          throw new Error(syncPayload.error ?? 'La mise à jour du paiement a échoué.');
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'La mise à jour du paiement a échoué.';
         throw new Error(message);
       }
 
