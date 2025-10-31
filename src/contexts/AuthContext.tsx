@@ -27,6 +27,23 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const fetchProfile = useCallback(async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+      if (error) throw error;
+      setProfile(data ?? null);
+    } catch (error) {
+      console.error('Failed to load profile', error);
+      setProfile(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     let mounted = true;
 
@@ -59,23 +76,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       listener.subscription.unsubscribe();
     };
   }, [fetchProfile]);
-
-  const fetchProfile = useCallback(async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-      if (error) throw error;
-      setProfile(data ?? null);
-    } catch (error) {
-      console.error('Failed to load profile', error);
-      setProfile(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   const refreshProfile = useCallback(async () => {
     if (user) {
