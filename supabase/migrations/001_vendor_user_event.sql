@@ -110,6 +110,26 @@ CREATE TRIGGER prevent_role_change_on_profiles
 BEFORE UPDATE ON profiles
 FOR EACH ROW EXECUTE FUNCTION prevent_role_change();
 
+-- Trigger to create profile on new user
+CREATE OR REPLACE FUNCTION create_profile_for_new_user()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_role TEXT;
+  v_role_id INT;
+BEGIN
+  v_role := COALESCE(NEW.raw_user_meta_data->>'role', 'user');
+  SELECT id INTO v_role_id FROM roles WHERE name = v_role;
+
+  INSERT INTO public.profiles (id, name, role_id)
+  VALUES (NEW.id, NEW.raw_user_meta_data->>'name', v_role_id);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION create_profile_for_new_user();
+
 -- RPCs
 CREATE OR REPLACE FUNCTION create_event_with_slots(
   p_title TEXT, p_desc TEXT, p_cat TEXT, p_price_cents INT, p_max INT,
