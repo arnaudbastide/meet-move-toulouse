@@ -12,7 +12,7 @@ export interface Event {
   status: string;
   created_at: string;
   profiles: {
-    name: string;
+    full_name: string;
     avatar_url: string;
   };
 }

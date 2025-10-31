@@ -13,7 +13,7 @@ const fetchEvent = async (id: string): Promise<Event | null> => {
     .select(`
       *,
       profiles (
-        name,
+        full_name,
         avatar_url
       )
     `)
@@ -85,7 +85,7 @@ const EventDetailRoute = () => {
         <div>
           <img src="/public/images/course-canal-du-midi.svg" alt={event.title} className="rounded-md mb-4" />
           <h1 className="text-3xl font-bold">{event.title}</h1>
-          <p className="text-muted-foreground my-2">by {event.profiles.name}</p>
+          <p className="text-muted-foreground my-2">by {event.profiles.full_name}</p>
           <p>{event.description}</p>
         </div>
         <div>
