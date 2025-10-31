@@ -36,7 +36,7 @@ const eventSchema = z.object({
 
 type EventFormValues = z.infer<typeof eventSchema>;
 
-const defaultValues: EventFormValues = {
+const getDefaultValues = (): EventFormValues => ({
   title: '',
   description: '',
   category: 'sport',
@@ -51,7 +51,7 @@ const defaultValues: EventFormValues = {
       end_at: formatISO(new Date(Date.now() + 60 * 60 * 1000), { representation: 'complete' }).slice(0, 16),
     },
   ],
-};
+});
 
 const CreateRoute: React.FC = () => {
   const { user } = useAuth();
@@ -61,7 +61,7 @@ const CreateRoute: React.FC = () => {
 
   const form = useForm<EventFormValues>({
     resolver: zodResolver(eventSchema),
-    defaultValues,
+    defaultValues: getDefaultValues(),
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -90,7 +90,10 @@ const CreateRoute: React.FC = () => {
       return data as string;
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['events'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['events'] }),
+        queryClient.invalidateQueries({ queryKey: ['vendor-events'] }),
+      ]);
     },
   });
 
@@ -108,7 +111,7 @@ const CreateRoute: React.FC = () => {
     try {
       await mutation.mutateAsync(values);
       toast.success('Événement créé');
-      form.reset(defaultValues);
+      form.reset(getDefaultValues());
     } catch (error: any) {
       toast.error(error.message ?? 'Erreur lors de la création');
     }

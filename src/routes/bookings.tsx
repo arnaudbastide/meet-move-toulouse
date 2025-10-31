@@ -55,14 +55,26 @@ const BookingsRoute: React.FC = () => {
     },
   });
 
-  const cancelMutation = useMutation({
-    mutationFn: async (bookingId: string) => {
+  const cancelMutation = useMutation<void, Error, CancelBookingVariables>({
+    mutationFn: async ({ bookingId }: CancelBookingVariables) => {
       const { error } = await supabase.rpc('cancel_booking', { p_booking_id: bookingId });
       if (error) throw error;
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       toast.success('Réservation annulée');
-      await queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      const invalidations = [queryClient.invalidateQueries({ queryKey: ['bookings'] })];
+
+      if (variables?.eventId) {
+        invalidations.push(queryClient.invalidateQueries({ queryKey: ['event', variables.eventId] }));
+        invalidations.push(queryClient.invalidateQueries({ queryKey: ['event-slots', variables.eventId] }));
+      } else {
+        invalidations.push(queryClient.invalidateQueries({ queryKey: ['event'] }));
+        invalidations.push(queryClient.invalidateQueries({ queryKey: ['event-slots'] }));
+      }
+
+      invalidations.push(queryClient.invalidateQueries({ queryKey: ['vendor-events'] }));
+
+      await Promise.all(invalidations);
     },
     onError: (error: any) => {
       toast.error(getCancellationErrorMessage(error));
