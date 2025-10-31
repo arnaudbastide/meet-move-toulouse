@@ -1,97 +1,86 @@
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Button } from "./ui/button";
-import { MapPin, Calendar, Plus, User, Ticket } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "sonner";
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Calendar, Home, LayoutDashboard, LogOut, Plus, ShieldCheck, Ticket } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRole } from '@/hooks/useRole';
 
-const Navbar = () => {
+const Navbar: React.FC = () => {
+  const { user, signOut } = useAuth();
+  const { isVendor, isUser, isAdmin } = useRole();
   const location = useLocation();
   const navigate = useNavigate();
-  const { isAuthenticated, signOut } = useAuth();
 
   const isActive = (path: string) => location.pathname === path;
 
   const handleSignOut = async () => {
-    try {
-      await signOut();
-      toast.success("Signed out successfully");
-      navigate("/");
-    } catch (error) {
-      toast.error("Failed to sign out");
-    }
+    await signOut();
+    navigate('/');
   };
 
   return (
-    <nav className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <MapPin className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold bg-gradient-hero bg-clip-text text-transparent">
-              Meet & Move
-            </span>
+    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
+      <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4">
+        <div className="flex items-center gap-6">
+          <Link to="/" className="flex items-center gap-2 text-lg font-semibold">
+            <span className="rounded bg-primary px-2 py-1 text-primary-foreground">Meet</span>
+            <span className="text-primary">&amp;</span>
+            <span>Move</span>
           </Link>
-
-          <div className="hidden md:flex items-center gap-6">
-            <Link
-              to="/events"
-              className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary ${
-                isActive("/events") ? "text-primary" : "text-muted-foreground"
-              }`}
-            >
-              <Calendar className="h-4 w-4" />
-              Events
+          <nav className="hidden items-center gap-4 text-sm font-medium md:flex">
+            <Link className={isActive('/') ? 'text-primary' : 'text-muted-foreground'} to="/">
+              <Home className="mr-1 inline size-4" /> Carte &amp; liste
             </Link>
-            <Link
-              to="/reservations"
-              className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary ${
-                isActive("/reservations") ? "text-primary" : "text-muted-foreground"
-              }`}
-            >
-              <Ticket className="h-4 w-4" />
-              My Reservations
-            </Link>
-            <Link
-              to="/create"
-              className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary ${
-                isActive("/create") ? "text-primary" : "text-muted-foreground"
-              }`}
-            >
-              <Plus className="h-4 w-4" />
-              Create
-            </Link>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {isAuthenticated ? (
-              <Button variant="outline" size="sm" onClick={handleSignOut}>
-                <User className="h-4 w-4 mr-2" />
-                Sign Out
-              </Button>
-            ) : (
-              <Link to="/auth">
-                <Button variant="outline" size="sm">
-                  <User className="h-4 w-4 mr-2" />
-                  Sign In
-                </Button>
+            {isVendor && (
+              <>
+                <Link
+                  className={isActive('/create') ? 'text-primary' : 'text-muted-foreground'}
+                  to="/create"
+                >
+                  <Plus className="mr-1 inline size-4" /> Créer un événement
+                </Link>
+                <Link
+                  className={isActive('/vendor-dashboard') ? 'text-primary' : 'text-muted-foreground'}
+                  to="/vendor-dashboard"
+                >
+                  <LayoutDashboard className="mr-1 inline size-4" /> Tableau vendor
+                </Link>
+              </>
+            )}
+            {isUser && (
+              <Link
+                className={isActive('/bookings') ? 'text-primary' : 'text-muted-foreground'}
+                to="/bookings"
+              >
+                <Ticket className="mr-1 inline size-4" /> Mes réservations
               </Link>
             )}
-            <Link to="/reservations">
-              <Button variant="outline" size="sm">
-                <Ticket className="h-4 w-4 mr-2" />
-                My Reservations
-              </Button>
-            </Link>
-            <Link to="/create" className="hidden md:block">
-              <Button variant="hero" size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Create Event
-              </Button>
-            </Link>
-          </div>
+            {isAdmin && (
+              <Link
+                className={isActive('/admin') ? 'text-primary' : 'text-muted-foreground'}
+                to="/admin"
+              >
+                <ShieldCheck className="mr-1 inline size-4" /> Admin
+              </Link>
+            )}
+          </nav>
+        </div>
+        <div className="flex items-center gap-2">
+          {!user && (
+            <Button variant="outline" size="sm" onClick={() => navigate('/auth')}>
+              Connexion
+            </Button>
+          )}
+          {user && (
+            <Button variant="ghost" size="sm" onClick={handleSignOut}>
+              <LogOut className="mr-2 size-4" /> Déconnexion
+            </Button>
+          )}
+          <Button size="sm" onClick={() => navigate(isVendor ? '/create' : '/auth')}>
+            <Calendar className="mr-2 size-4" /> {isVendor ? 'Nouvel événement' : 'Devenir vendor'}
+          </Button>
         </div>
       </div>
-    </nav>
+    </header>
   );
 };
 
