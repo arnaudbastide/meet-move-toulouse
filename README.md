@@ -1,73 +1,106 @@
-# Welcome to your Lovable project
+# Meet & Move – React + Supabase MVP
 
-## Project info
+Meet & Move est une plateforme à deux rôles (vendor ou user) permettant de créer et réserver des évènements locaux avec paiement Stripe Connect Express.
 
-**URL**: https://lovable.dev/projects/18712e09-dcba-4121-9212-435ad9c355fd
+## Sommaire
+- [Stack](#stack)
+- [Prérequis](#prérequis)
+- [Installation locale](#installation-locale)
+- [Supabase](#supabase)
+- [Stripe](#stripe)
+- [Jeux de données de départ](#jeux-de-données-de-départ)
+- [Tests end-to-end](#tests-end-to-end)
+- [Déploiement Vercel](#déploiement-vercel)
 
-## How can I edit this code?
+## Stack
+- React 18 + Vite + TypeScript
+- Tailwind CSS + shadcn/ui
+- Supabase (PostgreSQL + Auth + Edge Functions)
+- Stripe Connect Express
+- React Query, React Hook Form, Zod, React Leaflet
+- Playwright pour les tests e2e
 
-There are several ways of editing your application.
+## Prérequis
+- Node.js 18+
+- pnpm (recommandé) ou npm
+- Supabase CLI (`npm install -g supabase`)
+- Stripe CLI (`brew install stripe/stripe-cli/stripe` ou via npm)
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/18712e09-dcba-4121-9212-435ad9c355fd) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+## Installation locale
+```bash
+pnpm install
+pnpm dev
 ```
+L'application est servie sur http://localhost:5173.
 
-**Edit a file directly in GitHub**
+> **Astuce :** pour utiliser `npm`, remplacez `pnpm` par `npm run`.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Supabase
+1. **Initialiser Supabase localement**
+   ```bash
+   supabase start
+   ```
+2. **Appliquer la migration**
+   ```bash
+   supabase migration up
+   ```
+   La migration `supabase/migrations/001_vendor_user_event.sql` crée toutes les tables, politiques RLS et RPCs nécessaires.
+3. **Configurer les variables d'environnement**
+   Copiez `.env.example` vers `.env` et complétez :
+   ```bash
+   cp .env.example .env
+   ```
+   - `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` sont disponibles via `supabase status`.
 
-**Use GitHub Codespaces**
+## Stripe
+1. **Variables d'environnement backend** (pour les fonctions Express / Edge Functions)
+   - `STRIPE_SECRET_KEY`
+   - `STRIPE_WEBHOOK_SECRET`
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+2. **Lancer le serveur de fonctions Stripe**
+   ```bash
+   node functions/index.ts
+   ```
 
-## What technologies are used for this project?
+3. **Forwarder les webhooks avec Stripe CLI**
+   ```bash
+   stripe listen --events account.updated,payment_intent.succeeded,payment_intent.payment_failed,charge.refunded \
+     --forward-to http://localhost:8787/webhook
+   ```
 
-This project is built with:
+4. **Onboarding vendor**
+   - Utilisez l'endpoint `/create-account-link` pour créer l'URL d'onboarding Stripe Express.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Jeux de données de départ
+- `supabase/seed.sql` ajoute un vendor et un user de démonstration.
+- Exécuter :
+  ```bash
+  supabase db query < supabase/seed.sql
+  ```
+  ou collez le contenu dans l'éditeur SQL Supabase.
 
-## How can I deploy this project?
+## Tests end-to-end
+1. Démarrer l'application : `pnpm dev`
+2. Lancer les tests Playwright :
+   ```bash
+   pnpm test:e2e
+   ```
 
-Simply open [Lovable](https://lovable.dev/projects/18712e09-dcba-4121-9212-435ad9c355fd) and click on Share -> Publish.
+Le fichier `tests/e2e.spec.ts` couvre :
+- Inscription vendor → création d'évènement → ajout de créneau → déconnexion
+- Inscription user → réservation + paiement (mock Stripe) → annulation → traitement du webhook
 
-## Can I connect a custom domain to my Lovable project?
+> **Note :** Les tests supposent un backend Supabase en fonctionnement avec une base réinitialisée. Adaptez les identifiants si nécessaire.
 
-Yes, you can!
+## Déploiement Vercel
+1. Définir les variables d'environnement `VITE_*` dans Vercel.
+2. Ajouter les secrets Stripe et Supabase pour les fonctions (`functions/index.ts`).
+3. Activer le support Edge Functions ou déployer les fonctions Express via un Worker/Serverless (Vercel, Fly, etc.).
+4. Déployer :
+   ```bash
+   vercel deploy
+   ```
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+L'application est PWA-ready grâce à `vite-plugin-pwa`.
