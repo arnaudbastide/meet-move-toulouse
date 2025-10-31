@@ -19,6 +19,133 @@ export type Event = {
   };
   createdAt?: string;
   organizerId?: string;
+  isDefault?: boolean;
+};
+
+const ALL_CATEGORIES = ["Sports", "Language", "Arts", "Food", "Music", "Other"] as const;
+
+const DAYS_FROM_NOW = (days: number) => {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString().split("T")[0];
+};
+
+const DEFAULT_EVENTS: Record<(typeof ALL_CATEGORIES)[number], Event> = {
+  Sports: {
+    id: "default-sports-event",
+    title: "Sunrise Fitness Meetup",
+    category: "Sports",
+    date: DAYS_FROM_NOW(3),
+    time: "07:30",
+    location: "Prairie des Filtres, Toulouse",
+    attendees: 8,
+    maxAttendees: 20,
+    image: "https://images.unsplash.com/photo-1526403222078-360c85e3b3c7?w=800&h=400&fit=crop",
+    description: "Start your morning with a friendly community workout by the Garonne River.",
+    organizer: {
+      name: "Meet & Move Community",
+      initials: "MM",
+    },
+    isDefault: true,
+  },
+  Language: {
+    id: "default-language-event",
+    title: "French & Friends Conversation Night",
+    category: "Language",
+    date: DAYS_FROM_NOW(5),
+    time: "19:00",
+    location: "Le Seventies Café, Toulouse",
+    attendees: 12,
+    maxAttendees: 25,
+    image: "https://images.unsplash.com/photo-1503676382389-4809596d5290?w=800&h=400&fit=crop",
+    description: "Practice French and meet new people in a relaxed café atmosphere.",
+    organizer: {
+      name: "Meet & Move Community",
+      initials: "MM",
+    },
+    isDefault: true,
+  },
+  Arts: {
+    id: "default-arts-event",
+    title: "Canal du Midi Sketchwalk",
+    category: "Arts",
+    date: DAYS_FROM_NOW(7),
+    time: "15:00",
+    location: "Port Saint-Sauveur, Toulouse",
+    attendees: 10,
+    maxAttendees: 18,
+    image: "https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&h=400&fit=crop",
+    description: "Explore Toulouse's iconic canal while sketching and sharing creative tips.",
+    organizer: {
+      name: "Meet & Move Community",
+      initials: "MM",
+    },
+    isDefault: true,
+  },
+  Food: {
+    id: "default-food-event",
+    title: "Toulouse Tastes Food Crawl",
+    category: "Food",
+    date: DAYS_FROM_NOW(9),
+    time: "18:30",
+    location: "Place du Capitole, Toulouse",
+    attendees: 16,
+    maxAttendees: 24,
+    image: "https://images.unsplash.com/photo-1498654896293-37aacf113fd9?w=800&h=400&fit=crop",
+    description: "Discover the best regional bites with fellow food lovers.",
+    organizer: {
+      name: "Meet & Move Community",
+      initials: "MM",
+    },
+    isDefault: true,
+  },
+  Music: {
+    id: "default-music-event",
+    title: "Garonne Riverside Jam Session",
+    category: "Music",
+    date: DAYS_FROM_NOW(11),
+    time: "20:00",
+    location: "Quai de la Daurade, Toulouse",
+    attendees: 14,
+    maxAttendees: 30,
+    image: "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?w=800&h=400&fit=crop",
+    description: "Bring an instrument or just your voice for an open-air music session.",
+    organizer: {
+      name: "Meet & Move Community",
+      initials: "MM",
+    },
+    isDefault: true,
+  },
+  Other: {
+    id: "default-other-event",
+    title: "Hidden Courtyards Photo Walk",
+    category: "Other",
+    date: DAYS_FROM_NOW(13),
+    time: "10:00",
+    location: "Rue du Taur, Toulouse",
+    attendees: 9,
+    maxAttendees: 20,
+    image: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=800&h=400&fit=crop",
+    description: "Capture Toulouse's secret spots with local guides and photographers.",
+    organizer: {
+      name: "Meet & Move Community",
+      initials: "MM",
+    },
+    isDefault: true,
+  },
+};
+
+const addMissingDefaultEvents = (events: Event[]) => {
+  const eventsWithDefaults = [...events];
+
+  ALL_CATEGORIES.forEach((category) => {
+    const hasCategory = events.some((event) => event.category === category);
+    if (!hasCategory) {
+      eventsWithDefaults.push(DEFAULT_EVENTS[category]);
+    }
+  });
+
+  return eventsWithDefaults;
 };
 
 export type CreateEventInput = Omit<Event, "id" | "attendees" | "createdAt" | "organizerId"> & { 
@@ -98,9 +225,10 @@ export const EventsProvider = ({ children }: { children: React.ReactNode }) => {
         organizerId: event.organizer_id,
       }));
 
-      setEvents(mappedEvents);
+      setEvents(addMissingDefaultEvents(mappedEvents));
     } catch (error) {
       console.error('Error fetching events:', error);
+      setEvents(addMissingDefaultEvents([]));
     } finally {
       setIsLoading(false);
     }
@@ -200,7 +328,12 @@ export const EventsProvider = ({ children }: { children: React.ReactNode }) => {
           organizerId: data.organizer_id,
         };
 
-        setEvents((prev) => [newEvent, ...prev]);
+        setEvents((prev) => {
+          const filtered = prev.filter(
+            (existingEvent) => !(existingEvent.isDefault && existingEvent.category === newEvent.category)
+          );
+          return [newEvent, ...filtered];
+        });
         return newEvent;
       } catch (error) {
         console.error('Error creating event:', error);
@@ -216,8 +349,13 @@ export const EventsProvider = ({ children }: { children: React.ReactNode }) => {
         return { success: false };
       }
 
+      const existingEvent = events.find((event) => event.id === eventId);
+
+      if (existingEvent?.isDefault) {
+        return { success: false, event: existingEvent };
+      }
+
       if (reservedEventIds.includes(eventId)) {
-        const existingEvent = events.find((event) => event.id === eventId);
         return { success: false, event: existingEvent };
       }
 
@@ -251,8 +389,13 @@ export const EventsProvider = ({ children }: { children: React.ReactNode }) => {
         return { success: false };
       }
 
+      const existingEvent = events.find((event) => event.id === eventId);
+
+      if (existingEvent?.isDefault) {
+        return { success: false, event: existingEvent };
+      }
+
       if (!reservedEventIds.includes(eventId)) {
-        const existingEvent = events.find((event) => event.id === eventId);
         return { success: false, event: existingEvent };
       }
 
