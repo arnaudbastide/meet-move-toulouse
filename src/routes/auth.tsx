@@ -1,20 +1,48 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 const AuthRoute = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('user'); // 'user' or 'vendor'
   const [isLogin, setIsLogin] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const navigate = useNavigate();
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    if (user) {
+      navigate('/', { replace: true });
+    }
+  }, [user, loading, navigate]);
 
   const handleAuth = async () => {
+    if (!email || !password) {
+      toast.error('Please provide both email and password.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
     if (isLogin) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) alert(error.message);
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success('Welcome back!');
+        navigate('/', { replace: true });
+      }
     } else {
       const { error } = await supabase.auth.signUp({
         email,
@@ -25,9 +53,23 @@ const AuthRoute = () => {
           },
         },
       });
-      if (error) alert(error.message);
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success('Check your inbox to confirm your email.');
+      }
     }
+
+    setIsSubmitting(false);
   };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-4 max-w-sm">
@@ -57,8 +99,8 @@ const AuthRoute = () => {
             </div>
           </RadioGroup>
         )}
-        <Button onClick={handleAuth} className="w-full">
-          {isLogin ? 'Login' : 'Sign Up'}
+        <Button onClick={handleAuth} className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? 'Please wait...' : isLogin ? 'Login' : 'Sign Up'}
         </Button>
         <Button variant="link" onClick={() => setIsLogin(!isLogin)} className="w-full">
           {isLogin ? 'Need an account? Sign up' : 'Have an account? Login'}
