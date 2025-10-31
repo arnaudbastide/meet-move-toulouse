@@ -37,11 +37,6 @@ const getCancellationErrorMessage = (error: unknown) => {
   return "Impossible d’annuler la réservation pour le moment.";
 };
 
-interface CancelBookingVariables {
-  bookingId: string;
-  eventId?: string | null;
-}
-
 const BookingsRoute: React.FC = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -115,8 +110,7 @@ const BookingsRoute: React.FC = () => {
           const slotStart = booking.slot?.start_at ? new Date(booking.slot.start_at) : null;
           const cancellationWindowPassed = slotStart ? slotStart.getTime() - now < CANCEL_WINDOW_MS : false;
           const canCancel = booking.status === 'booked' && !cancellationWindowPassed;
-          const isCancellingThisBooking =
-            cancelMutation.isPending && cancelMutation.variables?.bookingId === booking.id;
+          const isCancellingThisBooking = cancelMutation.isPending && cancelMutation.variables === booking.id;
           return (
             <Card key={booking.id}>
               <CardHeader>
@@ -145,12 +139,7 @@ const BookingsRoute: React.FC = () => {
                       size="sm"
                       data-testid={`booking-cancel-${booking.id}`}
                       disabled={!canCancel || cancelMutation.isPending}
-                      onClick={() =>
-                        cancelMutation.mutate({
-                          bookingId: booking.id,
-                          eventId: booking.slot?.event?.id,
-                        })
-                      }
+                      onClick={() => cancelMutation.mutate(booking.id)}
                     >
                       {isCancellingThisBooking ? 'Annulation...' : 'Annuler'}
                     </Button>
