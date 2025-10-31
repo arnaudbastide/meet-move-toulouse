@@ -39,6 +39,94 @@ interface Cluster {
 
 const CLUSTER_RADIUS_PX = 45;
 
+const DEFAULT_EVENTS: EventWithExtras[] = [
+  {
+    id: 'default-sport-event',
+    vendor_id: 'default-organizer',
+    title: 'Course du canal du Midi',
+    description:
+      'Un footing convivial le long du canal du Midi pour découvrir Toulouse en bougeant. Accessible à tous les niveaux.',
+    category: 'sport',
+    price_cents: 0,
+    currency: 'EUR',
+    max_places: 40,
+    geom: { type: 'Point', coordinates: [1.4526, 43.6045] },
+    address: 'Port Saint-Sauveur, Toulouse',
+    status: 'published',
+    created_at: '2024-01-05T09:00:00.000Z',
+    vendor_name: 'Collectif Toulouse Sport',
+    next_slot: '2024-12-08T09:30:00.000Z',
+  },
+  {
+    id: 'default-culture-event',
+    vendor_id: 'default-organizer',
+    title: 'Balade culturelle au Capitole',
+    description:
+      'Une visite guidée du centre historique pour découvrir l’histoire du Capitole et des lieux emblématiques de Toulouse.',
+    category: 'culture',
+    price_cents: 1200,
+    currency: 'EUR',
+    max_places: 25,
+    geom: { type: 'Point', coordinates: [1.4442, 43.6043] },
+    address: 'Place du Capitole, Toulouse',
+    status: 'published',
+    created_at: '2024-01-08T10:00:00.000Z',
+    vendor_name: 'Guides de Toulouse',
+    next_slot: '2024-12-12T15:00:00.000Z',
+  },
+  {
+    id: 'default-food-event',
+    vendor_id: 'default-organizer',
+    title: 'Atelier cuisine occitane',
+    description:
+      'Apprenez à préparer un menu de spécialités occitanes avec un chef local et repartez avec vos créations.',
+    category: 'food',
+    price_cents: 3500,
+    currency: 'EUR',
+    max_places: 16,
+    geom: { type: 'Point', coordinates: [1.4272, 43.5991] },
+    address: 'Marché des Carmes, Toulouse',
+    status: 'published',
+    created_at: '2024-01-12T11:30:00.000Z',
+    vendor_name: 'Les Toqués Toulousains',
+    next_slot: '2024-12-18T18:30:00.000Z',
+  },
+  {
+    id: 'default-games-event',
+    vendor_id: 'default-organizer',
+    title: 'Soirée jeux de société',
+    description:
+      'Rencontrez d’autres joueurs autour d’une sélection de jeux modernes et classiques, encadrée par une animatrice.',
+    category: 'games',
+    price_cents: 800,
+    currency: 'EUR',
+    max_places: 30,
+    geom: { type: 'Point', coordinates: [1.4398, 43.6007] },
+    address: 'Ludothèque Quai des Savoirs, Toulouse',
+    status: 'published',
+    created_at: '2024-01-15T19:00:00.000Z',
+    vendor_name: 'Association Meeples Occitans',
+    next_slot: '2024-12-20T20:00:00.000Z',
+  },
+  {
+    id: 'default-other-event',
+    vendor_id: 'default-organizer',
+    title: 'Café rencontre nouveaux arrivants',
+    description:
+      'Un moment convivial pour rencontrer des Toulousains et d’autres nouveaux arrivants autour d’un café.',
+    category: 'other',
+    price_cents: 500,
+    currency: 'EUR',
+    max_places: 50,
+    geom: { type: 'Point', coordinates: [1.4329, 43.6087] },
+    address: 'Café Cour Saint-Georges, Toulouse',
+    status: 'published',
+    created_at: '2024-01-20T17:00:00.000Z',
+    vendor_name: 'Réseau Bienvenue à Toulouse',
+    next_slot: '2024-12-22T17:30:00.000Z',
+  },
+];
+
 const ClusteredMarkers: React.FC<{ markers: MarkerLocation[] }> = ({ markers }) => {
   const map = useMap();
   const [mapStateVersion, setMapStateVersion] = useState(0);
@@ -175,32 +263,38 @@ const IndexRoute: React.FC = () => {
     setIsClient(true);
   }, []);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<EventWithExtras[]>({
     queryKey: ['events'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('events')
-        .select('*, vendor:profiles(name), slots:event_slots(start_at)')
-        .eq('status', 'published')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as (EventRecord & {
-        vendor?: { name?: string | null } | null;
-        slots?: { start_at: string }[] | null;
-      })[];
+      try {
+        const { data, error } = await supabase
+          .from('events')
+          .select('*, vendor:profiles(name), slots:event_slots(start_at)')
+          .eq('status', 'published')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        const events = (data ?? []) as (EventRecord & {
+          vendor?: { name?: string | null } | null;
+          slots?: { start_at: string }[] | null;
+        })[];
+        return events.map((event) => {
+          const vendor_name = event.vendor?.name ?? null;
+          const next_slot = event.slots?.length
+            ? event.slots.map((s) => s.start_at).sort()[0]
+            : null;
+          return { ...event, vendor_name, next_slot };
+        });
+      } catch (error) {
+        console.warn(
+          'Impossible de récupérer les événements depuis Supabase, utilisation des événements par défaut.',
+          error,
+        );
+        return DEFAULT_EVENTS;
+      }
     },
   });
 
-  const events = useMemo<EventWithExtras[]>(() => {
-    if (!data) return [];
-    return data.map((event) => {
-      const vendor_name = event.vendor?.name ?? null;
-      const next_slot = event.slots?.length
-        ? event.slots.map((s) => s.start_at).sort()[0]
-        : null;
-      return { ...event, vendor_name, next_slot };
-    });
-  }, [data]);
+  const events = data && data.length > 0 ? data : DEFAULT_EVENTS;
 
   const markerLocations = useMemo(
     () =>
