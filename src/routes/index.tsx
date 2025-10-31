@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
-import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { EventCard } from '@/components/EventCard';
@@ -59,6 +58,21 @@ const IndexRoute: React.FC = () => {
     });
   }, [data]);
 
+  const markerLocations = useMemo(
+    () =>
+      events
+        .map((event) => {
+          const coords = extractLatLng(event.geom);
+          if (!coords) return null;
+          return { event, coords };
+        })
+        .filter((value): value is {
+          event: EventWithExtras;
+          coords: { lat: number; lng: number };
+        } => value !== null),
+    [events],
+  );
+
   const mapContent = (
     <div className="h-[480px] w-full overflow-hidden rounded-xl border">
       {isClient ? (
@@ -67,39 +81,16 @@ const IndexRoute: React.FC = () => {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          {events.length > 100 ? (
-            <MarkerClusterGroup chunkedLoading>
-              {events.map((event) => {
-                const coords = extractLatLng(event.geom);
-                if (!coords) return null;
-                return (
-                  <Marker key={event.id} position={[coords.lat, coords.lng]}>
-                    <Popup>
-                      <div className="space-y-2">
-                        <div className="font-semibold">{event.title}</div>
-                        <div className="text-sm text-muted-foreground">{event.address}</div>
-                      </div>
-                    </Popup>
-                  </Marker>
-                );
-              })}
-            </MarkerClusterGroup>
-          ) : (
-            events.map((event) => {
-              const coords = extractLatLng(event.geom);
-              if (!coords) return null;
-              return (
-                <Marker key={event.id} position={[coords.lat, coords.lng]}>
-                  <Popup>
-                    <div className="space-y-2">
-                      <div className="font-semibold">{event.title}</div>
-                      <div className="text-sm text-muted-foreground">{event.address}</div>
-                    </div>
-                  </Popup>
-                </Marker>
-              );
-            })
-          )}
+          {markerLocations.map(({ event, coords }) => (
+            <Marker key={event.id} position={[coords.lat, coords.lng]}>
+              <Popup>
+                <div className="space-y-2">
+                  <div className="font-semibold">{event.title}</div>
+                  <div className="text-sm text-muted-foreground">{event.address}</div>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
         </MapContainer>
       ) : (
         <Skeleton className="h-full w-full" />
