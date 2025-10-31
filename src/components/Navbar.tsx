@@ -5,12 +5,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRole } from '@/hooks/useRole';
 
 const Navbar: React.FC = () => {
-  const { user, signOut } = useAuth();
-  const { isVendor, isUser, isAdmin } = useRole();
+  const { user, signOut, profile } = useAuth();
+  const { isUser, isAdmin } = useRole();
   const location = useLocation();
   const navigate = useNavigate();
 
   const isActive = (path: string) => location.pathname === path;
+
+  const isVendor = Boolean(user && profile?.role_id === 1);
 
   const handleSignOut = async () => {
     await signOut();
@@ -30,7 +32,7 @@ const Navbar: React.FC = () => {
             <Link className={isActive('/') ? 'text-primary' : 'text-muted-foreground'} to="/">
               <Home className="mr-1 inline size-4" /> Carte &amp; liste
             </Link>
-            {isVendor && (
+            {isVendor ? (
               <>
                 <Link
                   className={isActive('/create') ? 'text-primary' : 'text-muted-foreground'}
@@ -45,6 +47,13 @@ const Navbar: React.FC = () => {
                   <LayoutDashboard className="mr-1 inline size-4" /> Tableau vendor
                 </Link>
               </>
+            ) : (
+              <Link
+                className={isActive('/auth') ? 'text-primary' : 'text-muted-foreground'}
+                to="/auth"
+              >
+                <ShieldCheck className="mr-1 inline size-4" /> Devenir vendor
+              </Link>
             )}
             {isUser && (
               <Link
@@ -76,7 +85,7 @@ const Navbar: React.FC = () => {
             </Button>
           )}
           <Button size="sm" onClick={() => navigate(isVendor ? '/create' : '/auth')}>
-            <Calendar className="mr-2 size-4" /> {isVendor ? 'Nouvel événement' : 'Devenir vendor'}
+            <Calendar className="mr-2 size-4" /> {isVendor ? 'Créer un événement' : 'Devenir vendor'}
           </Button>
         </div>
       </div>
