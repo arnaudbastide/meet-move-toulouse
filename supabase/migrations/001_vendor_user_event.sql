@@ -10,7 +10,40 @@ create table roles(
 );
 insert into roles(id,name) values (1,'vendor'),(2,'user');
 
--- 2.3 Profiles
+-- 2.3 Elevated application roles (admin, moderator, ...)
+create type if not exists app_role as enum ('admin','moderator','user');
+
+create table user_roles(
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  role app_role not null,
+  unique(user_id, role)
+);
+
+alter table user_roles enable row level security;
+
+create or replace function has_role(_user_id uuid, _role app_role)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+set row_security = off
+as $$
+  select exists (
+    select 1
+    from user_roles
+    where user_id = _user_id
+      and role = _role
+  );
+$$;
+
+create policy "Admins manage user roles" on user_roles
+  for all
+  using (has_role(auth.uid(), 'admin'))
+  with check (has_role(auth.uid(), 'admin'));
+
+-- 2.4 Profiles
 create table profiles(
   id uuid primary key references auth.users on delete cascade,
   name text not null,
@@ -20,7 +53,7 @@ create table profiles(
   constraint one_role_per_profile unique (id,role_id)
 );
 
--- 2.4 Events
+-- 2.5 Events
 create table events(
   id uuid primary key default uuid_generate_v4(),
   vendor_id uuid not null references profiles(id) on delete cascade,
@@ -36,7 +69,7 @@ create table events(
   created_at timestamptz default now()
 );
 
--- 2.5 Slots
+-- 2.6 Slots
 create table event_slots(
   id uuid primary key default uuid_generate_v4(),
   event_id uuid not null references events on delete cascade,
@@ -46,7 +79,7 @@ create table event_slots(
   unique(event_id,start_at)
 );
 
--- 2.6 Bookings (+ payment intent)
+-- 2.7 Bookings (+ payment intent)
 create table bookings(
   id uuid primary key default uuid_generate_v4(),
   user_id uuid not null references profiles(id) on delete cascade,
@@ -60,7 +93,7 @@ create table bookings(
   constraint one_booking_per_user_slot unique (user_id,slot_id)
 );
 
--- 2.7 Vendor Stripe accounts
+-- 2.8 Vendor Stripe accounts
 create table vendor_accounts(
   profile_id uuid primary key references profiles(id) on delete cascade,
   stripe_account_id text unique not null,
@@ -68,7 +101,7 @@ create table vendor_accounts(
   created_at timestamptz default now()
 );
 
--- 2.8 RLS
+-- 2.9 RLS
 alter table profiles enable row level security;
 alter table events enable row level security;
 alter table event_slots enable row level security;
@@ -94,8 +127,9 @@ create policy "User insert booking" on bookings for insert with check (auth.uid(
 
 -- vendor_accounts
 create policy "Vendor read own account" on vendor_accounts for select using (auth.uid()=profile_id);
+create policy "Admin read vendor accounts" on vendor_accounts for select using (has_role(auth.uid(), 'admin'));
 
--- 2.9 RPCs
+-- 2.10 RPCs
 -- create event + slots
 create or replace function create_event_with_slots(
   p_title text, p_desc text, p_cat text, p_price_cents int, p_max int,
