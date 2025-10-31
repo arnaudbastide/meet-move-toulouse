@@ -5,11 +5,18 @@ import type { ReactNode } from 'react';
 import { useInitiateBooking } from '../useInitiateBooking';
 
 const mutateAsyncMock = vi.fn();
+const rpcMock = vi.fn();
 
 vi.mock('../useBookSlot', () => ({
   useBookSlot: () => ({
     mutateAsync: mutateAsyncMock,
   }),
+}));
+
+vi.mock('@/lib/supabase', () => ({
+  supabase: {
+    rpc: rpcMock,
+  },
 }));
 
 describe('useInitiateBooking', () => {
@@ -20,6 +27,8 @@ describe('useInitiateBooking', () => {
     (globalThis as unknown as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
     vi.stubEnv('VITE_FUNCTIONS_URL', 'https://functions.test');
     mutateAsyncMock.mockReset();
+    rpcMock.mockReset();
+    rpcMock.mockResolvedValue({ data: null, error: null });
   });
 
   afterEach(() => {
