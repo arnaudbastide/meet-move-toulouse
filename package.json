@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:e2e": "playwright test",
-    "functions:dev": "tsx functions/index.ts",
+    "functions:dev": "tsx supabase/functions/index.ts",
     "functions:health": "tsx scripts/health-check.ts",
     "seed": "tsx scripts/seed.ts"
   },

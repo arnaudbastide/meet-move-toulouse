@@ -26,6 +26,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "functions", "scripts"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "include": ["src", "supabase/functions", "scripts"]
 }
