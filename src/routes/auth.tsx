@@ -44,12 +44,15 @@ const AuthRoute = () => {
         navigate('/', { replace: true });
       }
     } else {
+      const fallbackName = email.split('@')[0] ?? 'Member';
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             role,
+            name: fallbackName,
+            full_name: fallbackName,
           },
         },
       });
