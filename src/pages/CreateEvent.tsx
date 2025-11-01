@@ -10,23 +10,15 @@ import { Calendar, MapPin, Users } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { toast } from "sonner";
 import { useEvents } from "@/contexts/EventsContext";
-import { useAuth } from "@/contexts/AuthContext";
 
 const CreateEvent = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [category, setCategory] = useState<string>("");
   const { addEvent } = useEvents();
-  const { user, profile } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
-    if (!user) {
-      toast.error("You must be logged in to create an event.");
-      navigate("/auth");
-      return;
-    }
 
     if (!category) {
       toast.error("Please select a category for your event.");
@@ -58,35 +50,23 @@ const CreateEvent = () => {
         return;
       }
 
-      const userName = profile?.full_name || user.email || "Community Organizer";
-      const userInitials = userName
-        .split(" ")
-        .map((part) => part[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase();
-
-      const newEvent = await addEvent({
+      const newEvent = addEvent({
         title,
         description,
         category,
         date,
         time,
         location,
+        attendees: 0,
         maxAttendees: safeMaxAttendees,
         image:
           imageUrl ||
           "https://images.unsplash.com/photo-1545239351-1141bd82e8a6?w=800&h=400&fit=crop",
         organizer: {
-          name: userName,
-          initials: userInitials,
+          name: "Community Organizer",
+          initials: "CO",
         },
       });
-
-      if (!newEvent) {
-        toast.error("Failed to create event. Please try again.");
-        return;
-      }
 
       toast.success("Event created successfully!");
       e.currentTarget.reset();

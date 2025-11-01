@@ -13,8 +13,8 @@ const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1545239351-1141bd82e8a
 const MyReservations = () => {
   const { reservedEvents, cancelReservation } = useEvents();
 
-  const handleCancel = async (eventId: string) => {
-    const result = await cancelReservation(eventId);
+  const handleCancel = (eventId: string) => {
+    const result = cancelReservation(eventId);
 
     if (!result?.event) {
       toast.error("Something went wrong while canceling your reservation.");
