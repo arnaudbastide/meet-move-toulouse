@@ -36,6 +36,16 @@ const IndexRoute = () => {
     return <div>Error: {error.message}</div>;
   }
 
+  if (!events || events.length === 0) {
+    return (
+      <div className="container mx-auto p-4">
+        <p className="text-muted-foreground text-center">
+          No events available yet. Create one from the vendor dashboard or run the seed script.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto p-4">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

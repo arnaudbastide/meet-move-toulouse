@@ -10,10 +10,12 @@ export interface Event {
   geom: any;
   address: string;
   created_at: string;
-  profiles: {
-    full_name: string;
-    avatar_url: string;
-  };
+  organizer_name?: string | null;
+  organizer_initials?: string | null;
+  profiles?: {
+    full_name?: string | null;
+    avatar_url?: string | null;
+  } | null;
 }
 
 export interface EventSlot {

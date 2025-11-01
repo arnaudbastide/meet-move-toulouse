@@ -79,13 +79,15 @@ const EventDetailRoute = () => {
     return <div>Event not found</div>;
   }
 
+  const organizerName = event?.profiles?.full_name ?? event?.organizer_name ?? 'Community host';
+
   return (
     <div className="container mx-auto p-4">
       <div className="grid md:grid-cols-2 gap-8">
         <div>
           <img src="/public/images/course-canal-du-midi.svg" alt={event.title} className="rounded-md mb-4" />
           <h1 className="text-3xl font-bold">{event.title}</h1>
-          <p className="text-muted-foreground my-2">by {event.profiles.full_name}</p>
+          <p className="text-muted-foreground my-2">by {organizerName}</p>
           <p>{event.description}</p>
         </div>
         <div>
