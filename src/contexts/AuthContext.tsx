@@ -20,14 +20,25 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const deriveRoleId = (user: User): number => {
+const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL ?? 'http://localhost:8787';
+
+type RoleKey = 'vendor' | 'user' | 'admin';
+
+const deriveRoleKey = (user: User): RoleKey => {
   const metadataRole = (user.user_metadata?.role as string | undefined)?.toLowerCase();
   if (metadataRole === 'vendor') {
-    return 1;
+    return 'vendor';
   }
   if (metadataRole === 'admin') {
-    return 99;
+    return 'admin';
   }
+  return 'user';
+};
+
+const deriveRoleId = (user: User): number => {
+  const roleKey = deriveRoleKey(user);
+  if (roleKey === 'vendor') return 1;
+  if (roleKey === 'admin') return 99;
   return 2;
 };
 
@@ -52,25 +63,41 @@ const buildProfilePayload = (user: User) => {
   };
 };
 
-const ensureProfileExists = async (user: User, current: ProfileRow): Promise<ProfileRow> => {
-  if (current) {
+const ensureProfileExists = async (
+  session: Session | null,
+  user: User,
+  current: ProfileRow,
+): Promise<ProfileRow> => {
+  if (current?.role_id) {
+    return current;
+  }
+
+  if (!session?.access_token) {
     return current;
   }
 
   try {
-    const payload = buildProfilePayload(user);
-    const { data, error } = await supabase
-      .from('profiles')
-      .upsert(payload, { onConflict: 'id' })
-      .select('*')
-      .single();
+    const roleKey = deriveRoleKey(user);
+    const displayName = buildProfilePayload(user).name ?? 'Community member';
+    const response = await fetch(`${FUNCTIONS_URL}/ensure-profile`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        role: roleKey,
+        name: displayName,
+      }),
+    });
 
-    if (error) {
-      console.error('Failed to upsert profile', error);
+    if (!response.ok) {
+      console.error('Failed to ensure profile via service endpoint', await response.text());
       return current;
     }
 
-    return data ?? current;
+    const payload = (await response.json()) as { profile?: ProfileRow };
+    return payload.profile ?? current;
   } catch (error) {
     console.error('Unexpected error while ensuring profile exists', error);
     return current;
@@ -138,7 +165,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     let isMounted = true;
 
-    const loadProfile = async (currentUser: User) => {
+    const loadProfile = async (currentUser: User, currentSession: Session | null) => {
       setLoading(true);
       try {
         const { data, error } = await supabase
@@ -158,7 +185,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
 
-        const ensured = await ensureProfileExists(currentUser, data ?? null);
+        const ensured = await ensureProfileExists(currentSession, currentUser, data ?? null);
         if (!isMounted) {
           return;
         }
@@ -177,7 +204,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     if (user) {
-      void loadProfile(user);
+      void loadProfile(user, session);
     } else {
       setProfile(null);
       setLoading(false);
@@ -186,7 +213,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       isMounted = false;
     };
-  }, [user]);
+  }, [user, session]);
 
   const value: AuthContextValue = {
     session,

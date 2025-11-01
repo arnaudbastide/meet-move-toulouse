@@ -8,6 +8,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
+const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL ?? 'http://localhost:8787';
+
 const AuthRoute = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -27,6 +29,60 @@ const AuthRoute = () => {
     }
   }, [user, loading, navigate]);
 
+  const ensureProfile = async (accessToken: string, selectedRole: string, displayName: string) => {
+    try {
+      await fetch(`${FUNCTIONS_URL}/ensure-profile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          role: selectedRole,
+          name: displayName,
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to ensure profile after auth', error);
+    }
+  };
+
+  const handleRedirectByRole = async () => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const currentSession = sessionData.session;
+
+    if (!currentSession?.user) {
+      navigate('/', { replace: true });
+      return;
+    }
+
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('role_id')
+      .eq('id', currentSession.user.id)
+      .maybeSingle();
+
+    let roleId = profileData?.role_id ?? null;
+    const metadataRole = (currentSession.user.user_metadata?.role as string | undefined)?.toLowerCase() ?? 'user';
+    const displayName =
+      (currentSession.user.user_metadata?.name as string | undefined) ??
+      (currentSession.user.user_metadata?.full_name as string | undefined) ??
+      currentSession.user.email?.split('@')[0] ??
+      'Member';
+
+    if (!roleId && currentSession.access_token) {
+      await ensureProfile(currentSession.access_token, metadataRole, displayName);
+      roleId = metadataRole === 'vendor' ? 1 : metadataRole === 'admin' ? 99 : 2;
+    }
+
+    if (roleId === 1) {
+      navigate('/vendor-dashboard', { replace: true });
+      return;
+    }
+
+    navigate('/bookings', { replace: true });
+  };
+
   const handleAuth = async () => {
     if (!email || !password) {
       toast.error('Please provide both email and password.');
@@ -35,35 +91,52 @@ const AuthRoute = () => {
 
     setIsSubmitting(true);
 
-    if (isLogin) {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        toast.error(error.message);
+    try {
+      if (isLogin) {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+          toast.error(error.message);
+        } else {
+          toast.success('Welcome back!');
+          if (data.session?.access_token) {
+            const displayName =
+              (data.session.user.user_metadata?.name as string | undefined) ??
+              (data.session.user.user_metadata?.full_name as string | undefined) ??
+              email.split('@')[0] ??
+              'Member';
+            await ensureProfile(
+              data.session.access_token,
+              (data.session.user.user_metadata?.role as string | undefined)?.toLowerCase() ?? 'user',
+              displayName,
+            );
+          }
+          await handleRedirectByRole();
+        }
       } else {
-        toast.success('Welcome back!');
-        navigate('/', { replace: true });
-      }
-    } else {
-      const fallbackName = email.split('@')[0] ?? 'Member';
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            role,
-            name: fallbackName,
-            full_name: fallbackName,
+        const fallbackName = email.split('@')[0] ?? 'Member';
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              role,
+              name: fallbackName,
+              full_name: fallbackName,
+            },
           },
-        },
-      });
-      if (error) {
-        toast.error(error.message);
-      } else {
-        toast.success('Check your inbox to confirm your email.');
+        });
+        if (error) {
+          toast.error(error.message);
+        } else {
+          toast.success('Check your inbox to confirm your email.');
+          if (data.session?.access_token) {
+            await ensureProfile(data.session.access_token, role, fallbackName);
+          }
+        }
       }
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsSubmitting(false);
   };
 
   if (loading) {

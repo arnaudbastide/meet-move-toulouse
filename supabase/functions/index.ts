@@ -24,6 +24,59 @@ app.get('/health', (req, res) => {
   res.json({ ok: true });
 });
 
+const ensureProfileSchema = z.object({
+  role: z.enum(['vendor', 'user', 'admin']),
+  name: z.string().min(1).optional(),
+});
+
+app.post('/ensure-profile', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'Missing bearer token' });
+      return;
+    }
+
+    const accessToken = authHeader.slice('Bearer '.length);
+    const { data: userResult, error: userError } = await supabase.auth.getUser(accessToken);
+
+    if (userError || !userResult?.user) {
+      res.status(401).json({ error: 'Invalid access token' });
+      return;
+    }
+
+    const payload = ensureProfileSchema.parse(req.body);
+    const roleId = payload.role === 'vendor' ? 1 : payload.role === 'admin' ? 99 : 2;
+    const displayName =
+      payload.name?.trim() ||
+      (userResult.user.email?.split('@')[0] ?? 'Community member');
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .upsert(
+        {
+          id: userResult.user.id,
+          role_id: roleId,
+          name: displayName,
+          full_name: displayName,
+          avatar_url: (userResult.user.user_metadata?.avatar_url as string | null | undefined) ?? null,
+        },
+        { onConflict: 'id' },
+      )
+      .select('*')
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({ profile: data });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ error: 'Failed to ensure profile' });
+  }
+});
+
 // Create Stripe account link
 const createAccountLinkSchema = z.object({
   profileId: z.string().uuid(),
@@ -85,17 +138,33 @@ app.post('/create-payment-intent', async (req, res) => {
 
     const { data: slot, error: slotError } = await supabase
       .from('event_slots')
-      .select('*, events(*, vendor_accounts(stripe_account_id))')
+      .select('id, event_id, start_at, end_at, booked_places')
       .eq('id', slotId)
       .single();
 
-    if (slotError || !slot) throw new Error('Slot not found');
+    if (slotError || !slot) {
+      throw new Error('Slot not found');
+    }
 
-    const { events: event } = slot;
-    if (!event) throw new Error('Event not found');
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('id', slot.event_id)
+      .single();
 
-    const { vendor_accounts: vendorAccount } = event;
-    if (!vendorAccount) throw new Error('Vendor account not found');
+    if (eventError || !event) {
+      throw new Error('Event not found');
+    }
+
+    const { data: vendorAccount, error: vendorError } = await supabase
+      .from('vendor_accounts')
+      .select('stripe_account_id')
+      .eq('profile_id', event.vendor_id)
+      .single();
+
+    if (vendorError || !vendorAccount) {
+      throw new Error('Vendor account not found');
+    }
 
     const platformFee = Math.ceil(event.price_cents * 0.1);
 
