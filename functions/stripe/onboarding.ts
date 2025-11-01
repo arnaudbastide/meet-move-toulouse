@@ -1,45 +1,55 @@
-import type Stripe from 'stripe';
-import type { SupabaseServiceClient } from '../lib/supabase.js';
-import { internalError } from '../lib/errors.js';
-import type { RequestContext } from '../lib/logger.js';
-import { logInfo } from '../lib/logger.js';
-import type { z } from 'zod';
-import { createAccountLinkSchema } from '../lib/validation.js';
-
-export type CreateAccountLinkInput = z.infer<typeof createAccountLinkSchema>;
+import type Stripe from 'npm:stripe@17';
+import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
+import { internalError, validationError } from '../lib/errors.ts';
+import type { RequestContext } from '../lib/logger.ts';
+import { logInfo } from '../lib/logger.ts';
+import { createAccountLinkSchema } from '../lib/validation.ts';
 
 export interface OnboardingDependencies {
   stripe: Stripe;
-  supabase: SupabaseServiceClient;
-}
-
-interface VendorAccountRow {
-  profile_id: string;
-  stripe_account_id: string | null;
-  onboarding_complete: boolean | null;
+  supabase: SupabaseClient;
 }
 
 export async function createAccountLink(
-  input: CreateAccountLinkInput,
+  input: unknown,
   deps: OnboardingDependencies,
-  ctx: RequestContext,
+  ctx: RequestContext
 ): Promise<{ url: string; stripeAccountId: string }> {
-  const { profileId, refreshUrl, returnUrl, email } = input;
+  const validated = createAccountLinkSchema.safeParse(input);
+  if (!validated.success) {
+    throw validationError('Invalid input', validated.error.errors);
+  }
 
-  const {
-    data: vendorAccount,
-    error: vendorError,
-  } = await deps.supabase
-    .from<VendorAccountRow>('vendor_accounts')
-    .select('profile_id,stripe_account_id,onboarding_complete')
+  const { profileId, refreshUrl, returnUrl, email } = validated.data;
+
+  // Verify caller owns this profile
+  if (ctx.userId !== profileId) {
+    throw validationError('Unauthorized', []);
+  }
+
+  // Check if vendor (role_id = 1)
+  const { data: profile, error: profileError } = await deps.supabase
+    .from('profiles')
+    .select('id, role_id')
+    .eq('id', profileId)
+    .single();
+
+  if (profileError || !profile) {
+    throw validationError('Profile not found', []);
+  }
+
+  if (profile.role_id !== 1) {
+    throw validationError('Only vendors can onboard', []);
+  }
+
+  // Get or create vendor account
+  const { data: vendorAccount } = await deps.supabase
+    .from('vendor_accounts')
+    .select('stripe_account_id')
     .eq('profile_id', profileId)
     .maybeSingle();
 
-  if (vendorError) {
-    throw internalError('Unable to retrieve vendor account', 'vendor_account_fetch_failed');
-  }
-
-  let stripeAccountId = vendorAccount?.stripe_account_id ?? null;
+  let stripeAccountId = vendorAccount?.stripe_account_id;
 
   if (!stripeAccountId) {
     const account = await deps.stripe.accounts.create({
@@ -62,17 +72,14 @@ export async function createAccountLink(
           stripe_account_id: stripeAccountId,
           onboarding_complete: account.details_submitted ?? false,
         },
-        { onConflict: 'profile_id' },
+        { onConflict: 'profile_id' }
       );
 
     if (upsertError) {
-      throw internalError('Unable to persist vendor account', 'vendor_account_upsert_failed');
+      throw internalError('Failed to create vendor account', 'vendor_account_upsert_failed');
     }
 
-    logInfo('Created Stripe account for vendor', ctx, {
-      profileId,
-      stripeAccountId,
-    });
+    logInfo('Created Stripe account for vendor', ctx, { profileId, stripeAccountId });
   }
 
   const link = await deps.stripe.accountLinks.create({
