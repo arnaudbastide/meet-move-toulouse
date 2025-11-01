@@ -11,25 +11,6 @@ import Navbar from "@/components/Navbar";
 import { toast } from "sonner";
 import { useEvents } from "@/contexts/EventsContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { z } from "zod";
-
-const eventSchema = z.object({
-  title: z.string().trim().min(1, "Title is required").max(200, "Title must be less than 200 characters"),
-  description: z.string().trim().min(1, "Description is required").max(5000, "Description must be less than 5000 characters"),
-  category: z.enum(["Sports", "Language", "Arts", "Food", "Music", "Other"], {
-    errorMap: () => ({ message: "Please select a valid category" }),
-  }),
-  date: z.string().refine((val) => {
-    const eventDate = new Date(val);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return eventDate >= today;
-  }, "Event date must be today or in the future"),
-  time: z.string().regex(/^\d{2}:\d{2}$/, "Invalid time format"),
-  location: z.string().trim().min(1, "Location is required").max(500, "Location must be less than 500 characters"),
-  maxAttendees: z.number().min(2, "At least 2 attendees required").max(1000, "Maximum 1000 attendees allowed"),
-  imageUrl: z.union([z.string().url("Must be a valid URL"), z.literal("")]).optional(),
-});
 
 const CreateEvent = () => {
   const navigate = useNavigate();
@@ -47,6 +28,11 @@ const CreateEvent = () => {
       return;
     }
 
+    if (!category) {
+      toast.error("Please select a category for your event.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -60,25 +46,17 @@ const CreateEvent = () => {
       const maxAttendees = Number(formData.get("maxAttendees"));
       const imageUrl = ((formData.get("image") as string | null) ?? "").trim();
 
-      // Validate with Zod schema
-      const validationResult = eventSchema.safeParse({
-        title,
-        description,
-        category,
-        date,
-        time,
-        location,
-        maxAttendees,
-        imageUrl,
-      });
-
-      if (!validationResult.success) {
-        const firstError = validationResult.error.errors[0];
-        toast.error(firstError.message);
+      if (!title || !description || !date || !time || !location) {
+        toast.error("Please fill in all required fields.");
         return;
       }
 
-      const safeMaxAttendees = validationResult.data.maxAttendees;
+      const safeMaxAttendees = Number.isNaN(maxAttendees) ? 0 : Math.max(1, maxAttendees);
+
+      if (safeMaxAttendees <= 0) {
+        toast.error("Please provide a valid number of maximum attendees.");
+        return;
+      }
 
       const userName = profile?.full_name || user.email || "Community Organizer";
       const userInitials = userName
@@ -231,9 +209,9 @@ const CreateEvent = () => {
                   <Input
                     id="maxAttendees"
                     name="maxAttendees"
-                     type="number"
+                    type="number"
                     min="2"
-                    max="1000"
+                    max="100"
                     placeholder="e.g., 20"
                     className="pl-10"
                     required

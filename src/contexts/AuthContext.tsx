@@ -62,7 +62,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .maybeSingle();
+        .single();
 
       if (error) throw error;
       setProfile(data);
