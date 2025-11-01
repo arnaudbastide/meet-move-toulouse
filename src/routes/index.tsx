@@ -9,7 +9,7 @@ const fetchEvents = async (): Promise<Event[]> => {
     .select(`
       *,
       profiles (
-        full_name,
+        name,
         avatar_url
       )
     `)
