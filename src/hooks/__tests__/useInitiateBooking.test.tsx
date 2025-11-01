@@ -2,61 +2,58 @@ import { renderHook, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
+import { useInitiateBooking } from '../useInitiateBooking';
 
+const mutateAsyncMock = vi.fn();
 const rpcMock = vi.fn();
-const confirmCardPaymentMock = vi.fn();
 
-vi.mock('@stripe/stripe-js', () => {
-  return {
-    loadStripe: vi.fn(() => Promise.resolve({ confirmCardPayment: confirmCardPaymentMock })),
-  };
-});
+vi.mock('../useBookSlot', () => ({
+  useBookSlot: () => ({
+    mutateAsync: mutateAsyncMock,
+  }),
+}));
 
 vi.mock('@/lib/supabase', () => ({
   supabase: {
-    rpc: (...args: unknown[]) => rpcMock(...args),
+    rpc: rpcMock,
   },
 }));
-
-let useInitiateBooking: typeof import('../useInitiateBooking').useInitiateBooking;
 
 describe('useInitiateBooking', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     fetchMock = vi.fn();
     (globalThis as unknown as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
-    (globalThis as unknown as { alert: typeof alert }).alert = vi.fn();
-    confirmCardPaymentMock.mockReset();
-    confirmCardPaymentMock.mockResolvedValue({ paymentIntent: { id: 'pi_123' } });
-    rpcMock.mockReset();
-    rpcMock.mockResolvedValue({ data: 'booking-123', error: null });
     vi.stubEnv('VITE_FUNCTIONS_URL', 'https://functions.test');
-    vi.stubEnv('VITE_STRIPE_PUBLISHABLE_KEY', 'pk_test');
-
-    // ensure module picks up latest env values
-    const module = await import('../useInitiateBooking');
-    useInitiateBooking = module.useInitiateBooking;
-
+    mutateAsyncMock.mockReset();
+    rpcMock.mockReset();
+    rpcMock.mockResolvedValue({ data: null, error: null });
   });
 
   afterEach(() => {
     delete (globalThis as { fetch?: typeof fetch }).fetch;
-    delete (globalThis as { alert?: typeof alert }).alert;
     vi.unstubAllEnvs();
-    confirmCardPaymentMock.mockReset();
   });
 
-  it('creates a payment intent, books the slot, attaches the transfer and confirms the payment', async () => {
+  it('creates a payment intent before booking a slot and attaches the booking to the transfer', async () => {
+    let resolveCreatePaymentIntent:
+      | ((value: { ok: boolean; json: () => Promise<unknown> }) => void)
+      | undefined;
+
     fetchMock
-      .mockResolvedValueOnce({
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveCreatePaymentIntent = resolve;
+          }),
+      )
+      .mockImplementationOnce(async () => ({
         ok: true,
-        json: async () => ({ clientSecret: 'secret', paymentIntentId: 'pi_123' }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ transferGroup: 'booking-123' }),
-      });
+        json: async () => ({ transferGroup: 'booking-id' }),
+      }));
+
+    mutateAsyncMock.mockResolvedValue('booking-id');
 
     const queryClient = new QueryClient();
     const wrapper = ({ children }: { children: ReactNode }) => (
@@ -65,37 +62,34 @@ describe('useInitiateBooking', () => {
 
     const { result } = renderHook(() => useInitiateBooking(), { wrapper });
 
+    let bookingPromise: Promise<{ clientSecret: string; paymentIntentId: string }> | undefined;
+
     await act(async () => {
-      await result.current.mutateAsync({
+      bookingPromise = result.current.mutateAsync({
         slotId: 'slot-123',
         customerEmail: 'user@example.com',
       });
     });
 
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      1,
-      'https://functions.test/create-payment-intent',
+    expect(fetchMock).toHaveBeenCalledWith('https://functions.test/create-payment-intent', expect.any(Object));
+    expect(mutateAsyncMock).not.toHaveBeenCalled();
+
+    expect(resolveCreatePaymentIntent).toBeDefined();
+
+    await act(async () => {
+      resolveCreatePaymentIntent!({
+        ok: true,
+        json: async () => ({ clientSecret: 'secret', paymentIntentId: 'pi_123' }),
+      });
+      const resolved = await bookingPromise!;
+      expect(resolved).toEqual({ clientSecret: 'secret', paymentIntentId: 'pi_123' });
+    });
+
+    expect(mutateAsyncMock).toHaveBeenCalledWith({ slotId: 'slot-123', paymentIntentId: 'pi_123' });
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      'https://functions.test/attach-booking-transfer',
       expect.objectContaining({ method: 'POST' }),
     );
-
-    expect(rpcMock).toHaveBeenCalledWith('book_slot', {
-      p_slot_id: 'slot-123',
-      p_payment_intent_id: 'pi_123',
-    });
-
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
-      'https://functions.test/attach-booking-transfer',
-      expect.objectContaining({
-        method: 'POST',
-      }),
-    );
-
-    expect(confirmCardPaymentMock).toHaveBeenCalledWith('secret', {
-      payment_method: 'pm_card_visa',
-    });
-
-    expect(window.alert).toHaveBeenCalledWith('Booking confirmed!');
 
     queryClient.clear();
   });

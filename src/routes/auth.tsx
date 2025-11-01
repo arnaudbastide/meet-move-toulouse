@@ -29,15 +29,15 @@ const AuthRoute = () => {
     }
   }, [user, loading, navigate]);
 
-  const ensureProfile = async (accessToken: string, selectedRole: string, displayName: string) => {
+  const ensureProfile = async (authUserId: string, selectedRole: string, displayName: string) => {
     try {
       await fetch(`${FUNCTIONS_URL}/ensure-profile`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
+          authUserId,
           role: selectedRole,
           name: displayName,
         }),
@@ -47,40 +47,14 @@ const AuthRoute = () => {
     }
   };
 
-  const handleRedirectByRole = async () => {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const currentSession = sessionData.session;
-
-    if (!currentSession?.user) {
-      navigate('/', { replace: true });
-      return;
-    }
-
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('role_id')
-      .eq('id', currentSession.user.id)
-      .maybeSingle();
-
-    let roleId = profileData?.role_id ?? null;
-    const metadataRole = (currentSession.user.user_metadata?.role as string | undefined)?.toLowerCase() ?? 'user';
-    const displayName =
-      (currentSession.user.user_metadata?.name as string | undefined) ??
-      (currentSession.user.user_metadata?.full_name as string | undefined) ??
-      currentSession.user.email?.split('@')[0] ??
-      'Member';
-
-    if (!roleId && currentSession.access_token) {
-      await ensureProfile(currentSession.access_token, metadataRole, displayName);
-      roleId = metadataRole === 'vendor' ? 1 : metadataRole === 'admin' ? 99 : 2;
-    }
-
+  const redirectByRole = (roleId: number | null | undefined) => {
     if (roleId === 1) {
       navigate('/vendor-dashboard', { replace: true });
-      return;
+    } else if (roleId === 2) {
+      navigate('/bookings', { replace: true });
+    } else {
+      navigate('/', { replace: true });
     }
-
-    navigate('/bookings', { replace: true });
   };
 
   const handleAuth = async () => {
@@ -98,19 +72,31 @@ const AuthRoute = () => {
           toast.error(error.message);
         } else {
           toast.success('Welcome back!');
-          if (data.session?.access_token) {
+          const userId = data.user?.id;
+          if (userId) {
             const displayName =
               (data.session.user.user_metadata?.name as string | undefined) ??
               (data.session.user.user_metadata?.full_name as string | undefined) ??
               email.split('@')[0] ??
               'Member';
-            await ensureProfile(
-              data.session.access_token,
-              (data.session.user.user_metadata?.role as string | undefined)?.toLowerCase() ?? 'user',
-              displayName,
-            );
+            const metadataRole =
+              (data.session.user.user_metadata?.role as string | undefined)?.toLowerCase() ?? 'user';
+
+            const { data: existingProfile } = await supabase
+              .from('profiles')
+              .select('role_id')
+              .eq('id', userId)
+              .maybeSingle();
+
+            if (!existingProfile) {
+              await ensureProfile(userId, metadataRole, displayName);
+              redirectByRole(metadataRole === 'vendor' ? 1 : 2);
+            } else {
+              redirectByRole(existingProfile.role_id);
+            }
+          } else {
+            navigate('/', { replace: true });
           }
-          await handleRedirectByRole();
         }
       } else {
         const fallbackName = email.split('@')[0] ?? 'Member';
@@ -129,8 +115,8 @@ const AuthRoute = () => {
           toast.error(error.message);
         } else {
           toast.success('Check your inbox to confirm your email.');
-          if (data.session?.access_token) {
-            await ensureProfile(data.session.access_token, role, fallbackName);
+          if (data.user?.id) {
+            await ensureProfile(data.user.id, role, fallbackName);
           }
         }
       }

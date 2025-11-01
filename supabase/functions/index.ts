@@ -24,53 +24,22 @@ app.get('/health', (req, res) => {
   res.json({ ok: true });
 });
 
+// Ensure profile (service role) — upsert profiles(id, name, role_id)
 const ensureProfileSchema = z.object({
-  role: z.enum(['vendor', 'user', 'admin']),
-  name: z.string().min(1).optional(),
+  authUserId: z.string().uuid(),
+  name: z.string().min(1),
+  role: z.enum(['vendor', 'user']),
 });
 
 app.post('/ensure-profile', async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      res.status(401).json({ error: 'Missing bearer token' });
-      return;
-    }
-
-    const accessToken = authHeader.slice('Bearer '.length);
-    const { data: userResult, error: userError } = await supabase.auth.getUser(accessToken);
-
-    if (userError || !userResult?.user) {
-      res.status(401).json({ error: 'Invalid access token' });
-      return;
-    }
-
-    const payload = ensureProfileSchema.parse(req.body);
-    const roleId = payload.role === 'vendor' ? 1 : payload.role === 'admin' ? 99 : 2;
-    const displayName =
-      payload.name?.trim() ||
-      (userResult.user.email?.split('@')[0] ?? 'Community member');
-
-    const { data, error } = await supabase
+    const { authUserId, name, role } = ensureProfileSchema.parse(req.body);
+    const roleId = role === 'vendor' ? 1 : 2;
+    const { error } = await supabase
       .from('profiles')
-      .upsert(
-        {
-          id: userResult.user.id,
-          role_id: roleId,
-          name: displayName,
-          full_name: displayName,
-          avatar_url: (userResult.user.user_metadata?.avatar_url as string | null | undefined) ?? null,
-        },
-        { onConflict: 'id' },
-      )
-      .select('*')
-      .single();
-
-    if (error) {
-      throw error;
-    }
-
-    res.json({ profile: data });
+      .upsert({ id: authUserId, name, role_id: roleId }, { onConflict: 'id' });
+    if (error) throw error;
+    res.json({ ok: true, roleId });
   } catch (error) {
     console.error(error);
     res.status(400).json({ error: 'Failed to ensure profile' });
@@ -136,48 +105,51 @@ app.post('/create-payment-intent', async (req, res) => {
   try {
     const { slotId, customerEmail } = createPaymentIntentSchema.parse(req.body);
 
-    const { data: slot, error: slotError } = await supabase
+    // 1) Slot → récupérer event_id
+    const { data: slotRow, error: slotError } = await supabase
       .from('event_slots')
-      .select('id, event_id, start_at, end_at, booked_places')
+      .select('event_id')
       .eq('id', slotId)
       .single();
 
-    if (slotError || !slot) {
+    if (slotError || !slotRow) {
       throw new Error('Slot not found');
     }
 
-    const { data: event, error: eventError } = await supabase
+    // 2) Event → récupérer infos de prix + vendor_id
+    const { data: eventRow, error: eventError } = await supabase
       .from('events')
-      .select('*')
-      .eq('id', slot.event_id)
+      .select('id, price_cents, currency, vendor_id')
+      .eq('id', slotRow.event_id)
       .single();
 
-    if (eventError || !event) {
+    if (eventError || !eventRow) {
       throw new Error('Event not found');
     }
 
+    // 3) Vendor account → stripe_account_id
     const { data: vendorAccount, error: vendorError } = await supabase
       .from('vendor_accounts')
       .select('stripe_account_id')
-      .eq('profile_id', event.vendor_id)
+      .eq('profile_id', eventRow.vendor_id)
       .single();
 
     if (vendorError || !vendorAccount) {
       throw new Error('Vendor account not found');
     }
 
-    const platformFee = Math.ceil(event.price_cents * 0.1);
+    const platformFee = Math.ceil(eventRow.price_cents * 0.1);
 
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: event.price_cents,
-      currency: event.currency || 'eur',
+      amount: eventRow.price_cents,
+      currency: eventRow.currency || 'eur',
       application_fee_amount: platformFee,
       transfer_data: {
         destination: vendorAccount.stripe_account_id,
       },
       metadata: {
         slot_id: slotId,
-        event_id: event.id,
+        event_id: eventRow.id,
       },
     });
 

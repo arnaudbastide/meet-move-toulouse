@@ -1,11 +1,8 @@
 import { useMutation } from '@tanstack/react-query';
 import { loadStripe } from '@stripe/stripe-js';
-import { supabase } from '@/lib/supabase';
+import { useBookSlot } from './useBookSlot';
 
-const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
-const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL ?? 'http://localhost:8787';
-
-const stripePromise = STRIPE_PUBLISHABLE_KEY ? loadStripe(STRIPE_PUBLISHABLE_KEY) : Promise.resolve(null);
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 const initiateBooking = async ({
   slotId,
@@ -14,11 +11,8 @@ const initiateBooking = async ({
   slotId: string;
   customerEmail: string;
 }) => {
-  if (!STRIPE_PUBLISHABLE_KEY) {
-    throw new Error('Missing Stripe publishable key');
-  }
-
-  const paymentIntentResponse = await fetch(`${FUNCTIONS_URL}/create-payment-intent`, {
+  const functionsUrl = import.meta.env.VITE_FUNCTIONS_URL;
+  const response = await fetch(`${functionsUrl}/create-payment-intent`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -26,73 +20,55 @@ const initiateBooking = async ({
     body: JSON.stringify({ slotId, customerEmail }),
   });
 
-  if (!paymentIntentResponse.ok) {
+  if (!response.ok) {
     throw new Error('Failed to create payment intent');
   }
 
-  const { clientSecret, paymentIntentId } = (await paymentIntentResponse.json()) as {
+  const { clientSecret, paymentIntentId } = (await response.json()) as {
     clientSecret: string;
     paymentIntentId: string;
   };
-
-  const { data: bookingId, error: bookingError } = await supabase.rpc('book_slot', {
-    p_slot_id: slotId,
-    p_payment_intent_id: paymentIntentId,
-  });
-
-  if (bookingError || !bookingId) {
-    throw new Error(bookingError?.message ?? 'Failed to reserve the slot');
-  }
-
-  const attachResponse = await fetch(`${FUNCTIONS_URL}/attach-booking-transfer`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      bookingId,
-      paymentIntentId,
-    }),
-  });
-
-  if (!attachResponse.ok) {
-    throw new Error('Failed to attach booking transfer');
-  }
 
   const stripe = await stripePromise;
   if (!stripe) {
     throw new Error('Stripe.js has not loaded yet.');
   }
 
-  return {
-    stripe,
-    clientSecret,
-    paymentIntentId,
-    bookingId,
-  };
+  return { stripe, clientSecret, paymentIntentId };
 };
 
 export const useInitiateBooking = () => {
+  const bookSlot = useBookSlot();
+
   return useMutation({
     mutationFn: initiateBooking,
-    onSuccess: async ({ stripe, clientSecret, bookingId }) => {
-      const { error } = await stripe.confirmCardPayment(clientSecret, {
-        payment_method: 'pm_card_visa',
+    onSuccess: async ({ stripe, clientSecret, paymentIntentId }, variables) => {
+      // 1) Create booking via RPC
+      const bookingId = await bookSlot.mutateAsync({
+        slotId: variables.slotId,
+        paymentIntentId,
       });
 
-      if (error) {
-        console.error(error);
-        alert(error.message ?? 'Payment confirmation failed.');
-        return;
+      // 2) Attach booking to payment intent transfer group
+      const functionsUrl = import.meta.env.VITE_FUNCTIONS_URL;
+      const attachResponse = await fetch(`${functionsUrl}/attach-booking-transfer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ bookingId, paymentIntentId }),
+      });
+
+      if (!attachResponse.ok) {
+        throw new Error('Failed to attach booking transfer');
       }
 
-      alert('Booking confirmed!');
-      window.location.href = '/bookings';
+      // 3) Ready for checkout (handled elsewhere)
+      console.info('Payment intent ready', { paymentIntentId, clientSecret });
     },
-    onError: (error: unknown) => {
+    onError: (error) => {
       console.error(error);
-      const message = error instanceof Error ? error.message : 'Booking failed!';
-      alert(message);
+      alert('Booking failed!');
     },
   });
 };
