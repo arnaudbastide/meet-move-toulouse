@@ -45,9 +45,6 @@ async function main() {
   console.info('Starting seed process...');
   const serviceClient = getServiceClient();
 
-  // Ensure seed helper function exists
-  await ensureSeedHelperFunction(serviceClient);
-
   // Create demo users
   const vendorUser = await ensureUser(serviceClient, DEMO_VENDOR);
   const demoUser = await ensureUser(serviceClient, DEMO_USER);
@@ -83,72 +80,7 @@ main().catch((error) => {
   process.exit(1);
 });
 
-/**
- * Ensures the seed helper function exists in the database.
- * This function allows creating events by impersonating a vendor.
- */
-async function ensureSeedHelperFunction(serviceClient: ServiceSupabaseClient) {
-  const sql = `
-    CREATE OR REPLACE FUNCTION public.seed_create_event_with_slots(
-      p_vendor_id UUID,
-      p_title TEXT,
-      p_desc TEXT,
-      p_cat TEXT,
-      p_price_cents INT,
-      p_max INT,
-      p_lat FLOAT,
-      p_lng FLOAT,
-      p_addr TEXT,
-      p_slots JSONB
-    ) RETURNS UUID
-    LANGUAGE plpgsql
-    SECURITY DEFINER
-    SET search_path = public, auth
-    AS $$
-    DECLARE
-      v_event_id UUID;
-    BEGIN
-      -- Impersonate the vendor by setting JWT claims
-      PERFORM set_config('request.jwt.claim.sub', p_vendor_id::text, true);
-      PERFORM set_config('request.jwt.claim.role', 'authenticated', true);
-      
-      -- Call the actual create_event_with_slots function
-      v_event_id := create_event_with_slots(
-        p_title, p_desc, p_cat, p_price_cents, p_max, p_lat, p_lng, p_addr, p_slots
-      );
-      
-      RETURN v_event_id;
-    END;
-    $$;
-  `;
 
-  try {
-    // Use RPC or direct SQL execution
-    const { error } = await serviceClient.rpc('exec_sql', { sql });
-    if (error && !error.message.includes('exec_sql')) {
-      // Fallback: try direct PostgREST query endpoint if RPC doesn't exist
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: SERVICE_ROLE_KEY!,
-          Authorization: `Bearer ${SERVICE_ROLE_KEY!}`,
-        },
-        body: JSON.stringify({ sql }),
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Failed to create seed helper function: ${response.status} ${text}`);
-      }
-    }
-    console.info('✓ Ensured seed helper function');
-  } catch (error: any) {
-    // If exec_sql doesn't exist, try using the management API or direct connection
-    console.warn('Could not create seed helper via RPC, assuming it exists or will be created via migration');
-    console.warn('Error:', error.message);
-  }
-}
 
 /**
  * Ensures a user exists, creating it if necessary.

@@ -137,7 +137,7 @@ const EventDetailRoute = () => {
         <div className="grid md:grid-cols-2 gap-8">
           <div>
             <img 
-              src="/images/course-canal-du-midi.svg" 
+              src={event.image_url || '/placeholder.svg'} 
               alt={event.title} 
               className="rounded-md mb-4 w-full h-64 object-cover" 
             />

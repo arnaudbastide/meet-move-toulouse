@@ -1,115 +1,116 @@
-import { renderHook, act } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ReactNode } from 'react';
+import { renderHook, waitFor } from '@testing-library/react';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { useInitiateBooking } from '../useInitiateBooking';
+import { useBookSlot } from '../useBookSlot';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-const mutateAsyncMock = vi.fn();
-const rpcMock = vi.fn();
-
+// Mock dependencies
 vi.mock('../useBookSlot', () => ({
-  useBookSlot: () => ({
-    mutateAsync: mutateAsyncMock,
-  }),
+  useBookSlot: vi.fn(),
 }));
 
-vi.mock('@/lib/supabase', () => ({
-  supabase: {
-    rpc: rpcMock,
-  },
-}));
+global.fetch = vi.fn();
+
+const createWrapper = () => {
+  const queryClient = new QueryClient();
+  return ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+};
 
 describe('useInitiateBooking', () => {
-  let fetchMock: ReturnType<typeof vi.fn>;
+  const mockMutateAsync = vi.fn();
 
   beforeEach(() => {
-    fetchMock = vi.fn();
-    (globalThis as unknown as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
-    vi.stubEnv('VITE_FUNCTIONS_URL', 'https://functions.test');
-    mutateAsyncMock.mockReset();
-    rpcMock.mockReset();
-    rpcMock.mockResolvedValue({ data: null, error: null });
+    vi.resetAllMocks();
+    (useBookSlot as vi.Mock).mockReturnValue({ mutateAsync: mockMutateAsync });
   });
 
-  afterEach(() => {
-    delete (globalThis as { fetch?: typeof fetch }).fetch;
-    vi.unstubAllEnvs();
+  it('should handle successful booking initiation', async () => {
+    // Arrange
+    (fetch as vi.Mock)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ 
+        clientSecret: 'test_client_secret', 
+        paymentIntentId: 'pi_123' 
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: true }), { status: 200 }));
+
+    mockMutateAsync.mockResolvedValue('booking_456');
+
+    const { result } = renderHook(() => useInitiateBooking(), { wrapper: createWrapper() });
+
+    // Act
+    result.current.mutate({ slotId: 'slot_123', customerEmail: 'test@example.com' });
+
+    // Assert
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/create-payment-intent'), expect.any(Object));
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/attach-booking-transfer'), expect.any(Object));
+    expect(mockMutateAsync).toHaveBeenCalledWith({ slotId: 'slot_123', paymentIntentId: 'pi_123' });
+    expect(result.current.data).toEqual({ clientSecret: 'test_client_secret', paymentIntentId: 'pi_123' });
   });
 
-  it('creates a payment intent, books a slot, and attaches the booking to the transfer', async () => {
-    fetchMock
-      .mockImplementationOnce(async () => ({
-        ok: true,
-        json: async () => ({ clientSecret: 'secret', paymentIntentId: 'pi_123' }),
-      }))
-      .mockImplementationOnce(async () => ({
-        ok: true,
-        json: async () => ({ transferGroup: 'booking-id' }),
-      }));
+  it('should handle payment intent creation failure', async () => {
+    // Arrange
+    (fetch as vi.Mock).mockResolvedValueOnce(new Response(JSON.stringify({ error: 'Failed' }), { status: 500 }));
 
-    mutateAsyncMock.mockResolvedValue('booking-id');
+    const { result } = renderHook(() => useInitiateBooking(), { wrapper: createWrapper() });
 
-    const queryClient = new QueryClient();
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
+    // Act
+    result.current.mutate({ slotId: 'slot_123', customerEmail: 'test@example.com' });
 
-    const { result } = renderHook(() => useInitiateBooking(), { wrapper });
+    // Assert
+    await waitFor(() => expect(result.current.isError).toBe(true));
 
-    let bookingResult: { clientSecret: string; paymentIntentId: string } | undefined;
-
-    await act(async () => {
-      bookingResult = await result.current.mutateAsync({
-        slotId: 'slot-123',
-        customerEmail: 'user@example.com',
-      });
-    });
-
-    expect(bookingResult).toEqual({ clientSecret: 'secret', paymentIntentId: 'pi_123' });
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://functions.test/create-payment-intent',
-      expect.objectContaining({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
-    expect(mutateAsyncMock).toHaveBeenCalledWith({ slotId: 'slot-123', paymentIntentId: 'pi_123' });
-    expect(fetchMock).toHaveBeenLastCalledWith(
-      'https://functions.test/attach-booking-transfer',
-      expect.objectContaining({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
-
-    queryClient.clear();
+    expect(result.current.error).toBeInstanceOf(Error);
+    expect((result.current.error as Error).message).toContain('Failed to create payment intent');
+    expect(mockMutateAsync).not.toHaveBeenCalled();
   });
 
-  it('handles errors when creating payment intent fails', async () => {
-    fetchMock.mockImplementationOnce(async () => ({
-      ok: false,
-      status: 400,
-      json: async () => ({ error: 'Failed to create payment intent' }),
-    }));
+  it('should handle booking creation failure', async () => {
+    // Arrange
+    (fetch as vi.Mock).mockResolvedValueOnce(new Response(JSON.stringify({ 
+      clientSecret: 'test_client_secret', 
+      paymentIntentId: 'pi_123' 
+    }), { status: 200 }));
 
-    const queryClient = new QueryClient();
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
+    mockMutateAsync.mockRejectedValue(new Error('Booking failed'));
 
-    const { result } = renderHook(() => useInitiateBooking(), { wrapper });
+    const { result } = renderHook(() => useInitiateBooking(), { wrapper: createWrapper() });
 
-    await act(async () => {
-      await expect(
-        result.current.mutateAsync({
-          slotId: 'slot-123',
-          customerEmail: 'user@example.com',
-        }),
-      ).rejects.toThrow();
-    });
+    // Act
+    result.current.mutate({ slotId: 'slot_123', customerEmail: 'test@example.com' });
 
-    expect(mutateAsyncMock).not.toHaveBeenCalled();
+    // Assert
+    await waitFor(() => expect(result.current.isError).toBe(true));
 
-    queryClient.clear();
+    expect(result.current.error).toBeInstanceOf(Error);
+    expect((result.current.error as Error).message).toBe('Booking failed');
+    expect(fetch).toHaveBeenCalledTimes(1); // Only payment intent call
+  });
+
+  it('should handle booking transfer attachment failure', async () => {
+    // Arrange
+    (fetch as vi.Mock)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ 
+        clientSecret: 'test_client_secret', 
+        paymentIntentId: 'pi_123' 
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'Attach failed' }), { status: 500 }));
+
+    mockMutateAsync.mockResolvedValue('booking_456');
+
+    const { result } = renderHook(() => useInitiateBooking(), { wrapper: createWrapper() });
+
+    // Act
+    result.current.mutate({ slotId: 'slot_123', customerEmail: 'test@example.com' });
+
+    // Assert
+    await waitFor(() => expect(result.current.isError).toBe(true));
+
+    expect(result.current.error).toBeInstanceOf(Error);
+    expect((result.current.error as Error).message).toContain('Failed to attach booking transfer');
   });
 });

@@ -65,9 +65,42 @@ const cancelBooking = async (bookingId: string): Promise<void> => {
   }
 };
 
+import { Link } from 'react-router-dom';
+
 const BookingsRoute = () => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const queryClient = useQueryClient();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <p className="text-muted-foreground">Chargement...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="container mx-auto p-4 max-w-md">
+        <Card>
+          <CardHeader>
+            <CardTitle>Accès restreint</CardTitle>
+            <CardDescription>
+              Vous devez être connecté pour voir vos réservations.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button asChild className="w-full">
+              <Link to="/auth">Connexion</Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full">
+              <Link to="/">Retour à l'accueil</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const { data: bookings, isLoading, error } = useQuery({
     queryKey: ['bookings', user?.id],

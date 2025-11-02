@@ -138,9 +138,9 @@ const VendorDashboardRoute = () => {
   });
 
   const { data: vendorAccount, isLoading: isLoadingAccount } = useQuery({
-    queryKey: ['vendorAccount', user?.id],
-    queryFn: () => fetchVendorAccount(user!.id),
-    enabled: !!user,
+    queryKey: ['vendorAccount', profile?.id],
+    queryFn: () => fetchVendorAccount(profile!.id),
+    enabled: !!profile,
   });
 
   const isOnboardingComplete = vendorAccount?.onboarding_complete ?? false;

@@ -34,18 +34,31 @@ const Navbar = () => {
               }`}
             >
               <Calendar className="h-4 w-4" />
-              Events
+              Événements
             </Link>
+            {isAuthenticated && (
+              <Link
+                to="/bookings"
+                className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary ${
+                  isActive("/bookings") ? "text-primary" : "text-muted-foreground"
+                }`}
+              >
+                <Ticket className="h-4 w-4" />
+                Mes réservations
+              </Link>
+            )}
             {profile?.role_id === 1 && (
               <>
                 <Link
                   to="/vendor-dashboard"
                   className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary ${
-                    isActive("/vendor-dashboard") ? "text-primary" : "text-muted-foreground"
+                    isActive("/vendor-dashboard")
+                      ? "text-primary"
+                      : "text-muted-foreground"
                   }`}
                 >
                   <LayoutDashboard className="h-4 w-4" />
-                  Vendor Dashboard
+                  Tableau de bord
                 </Link>
                 <Link
                   to="/create"
@@ -54,7 +67,7 @@ const Navbar = () => {
                   }`}
                 >
                   <Plus className="h-4 w-4" />
-                  Create Event
+                  Créer un événement
                 </Link>
               </>
             )}
@@ -65,7 +78,7 @@ const Navbar = () => {
                   isActive("/auth") ? "text-primary" : "text-muted-foreground"
                 }`}
               >
-                Become a vendor
+                Devenir vendeur
               </Link>
             )}
           </div>
@@ -74,13 +87,13 @@ const Navbar = () => {
             {isAuthenticated ? (
               <Button variant="outline" size="sm" onClick={handleSignOut}>
                 <User className="h-4 w-4 mr-2" />
-                Sign Out
+                Déconnexion
               </Button>
             ) : (
               <Link to="/auth">
                 <Button variant="outline" size="sm">
                   <User className="h-4 w-4 mr-2" />
-                  Sign In
+                  Connexion
                 </Button>
               </Link>
             )}
