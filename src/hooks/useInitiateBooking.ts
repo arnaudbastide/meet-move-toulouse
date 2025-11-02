@@ -41,15 +41,20 @@ export const useInitiateBooking = () => {
   const bookSlot = useBookSlot();
 
   return useMutation({
-    mutationFn: initiateBooking,
-    onSuccess: async ({ stripe, clientSecret, paymentIntentId }, variables) => {
-      // 1) Create booking via RPC
+    mutationFn: async ({ slotId, customerEmail }: { slotId: string; customerEmail: string }) => {
+      // 1) Create payment intent
+      const { stripe, clientSecret, paymentIntentId } = await initiateBooking({
+        slotId,
+        customerEmail,
+      });
+
+      // 2) Create booking via RPC (stores payment intent)
       const bookingId = await bookSlot.mutateAsync({
-        slotId: variables.slotId,
+        slotId,
         paymentIntentId,
       });
 
-      // 2) Attach booking to payment intent transfer group
+      // 3) Attach booking to payment intent transfer group
       const functionsUrl = import.meta.env.VITE_FUNCTIONS_URL;
       const attachResponse = await fetch(`${functionsUrl}/attach-booking-transfer`, {
         method: 'POST',
@@ -60,15 +65,12 @@ export const useInitiateBooking = () => {
       });
 
       if (!attachResponse.ok) {
-        throw new Error('Failed to attach booking transfer');
+        const errorData = await attachResponse.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to attach booking transfer');
       }
 
-      // 3) Ready for checkout (handled elsewhere)
-      console.info('Payment intent ready', { paymentIntentId, clientSecret });
-    },
-    onError: (error) => {
-      console.error(error);
-      alert('Booking failed!');
+      // 4) Return client secret and payment intent ID for payment dialog
+      return { clientSecret, paymentIntentId };
     },
   });
 };
