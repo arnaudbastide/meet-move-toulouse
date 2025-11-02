@@ -1,40 +1,58 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
-import Events from "./pages/Events";
-import CreateEvent from "./pages/CreateEvent";
-import EventDetail from "./pages/EventDetail";
-import Auth from "./pages/Auth";
-import NotFound from "./pages/NotFound";
-import MyReservations from "./pages/MyReservations";
-import { AuthProvider } from "./contexts/AuthContext";
-import { EventsProvider } from "./contexts/EventsContext";
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import Navbar from '@/components/Navbar';
+import { Toaster } from '@/components/ui/toaster';
+import { Toaster as Sonner } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { AuthProvider } from '@/contexts/AuthContext';
+import IndexRoute from '@/routes/index';
+import CreateRoute from '@/routes/create';
+import EventDetailRoute from '@/routes/event.$id';
+import BookingsRoute from '@/routes/bookings';
+import VendorDashboardRoute from '@/routes/vendor-dashboard';
+import AdminRoute from '@/routes/admin';
+import AuthRoute from '@/routes/auth';
+import { VendorOnly, UserOnly, AdminOnly } from '@/components/RoleGuard';
 
 const queryClient = new QueryClient();
 
-const App = () => (
+const App: React.FC = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <ReactQueryDevtools initialIsOpen={false} />
       <AuthProvider>
-        <EventsProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/events" element={<Events />} />
-              <Route path="/events/:id" element={<EventDetail />} />
-              <Route path="/create" element={<CreateEvent />} />
-              <Route path="/reservations" element={<MyReservations />} />
-              <Route path="/auth" element={<Auth />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </EventsProvider>
+        <BrowserRouter>
+          <div className="flex min-h-screen flex-col bg-background text-foreground">
+            <Navbar />
+            <main className="flex-1">
+              <Routes>
+                <Route path="/" element={<IndexRoute />} />
+                <Route
+                  path="/create"
+                  element={<VendorOnly><CreateRoute /></VendorOnly>}
+                />
+                <Route path="/event/:id" element={<EventDetailRoute />} />
+                <Route
+                  path="/bookings"
+                  element={<UserOnly><BookingsRoute /></UserOnly>}
+                />
+                <Route
+                  path="/vendor-dashboard"
+                  element={<VendorOnly><VendorDashboardRoute /></VendorOnly>}
+                />
+                <Route
+                  path="/admin"
+                  element={<AdminOnly><AdminRoute /></AdminOnly>}
+                />
+                <Route path="/auth" element={<AuthRoute />} />
+                <Route path="*" element={<div>Not Found</div>} />
+              </Routes>
+            </main>
+          </div>
+        </BrowserRouter>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
