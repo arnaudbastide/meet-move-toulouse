@@ -36,18 +36,12 @@ describe('useInitiateBooking', () => {
     vi.unstubAllEnvs();
   });
 
-  it('creates a payment intent before booking a slot and attaches the booking to the transfer', async () => {
-    let resolveCreatePaymentIntent:
-      | ((value: { ok: boolean; json: () => Promise<unknown> }) => void)
-      | undefined;
-
+  it('creates a payment intent, books a slot, and attaches the booking to the transfer', async () => {
     fetchMock
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolveCreatePaymentIntent = resolve;
-          }),
-      )
+      .mockImplementationOnce(async () => ({
+        ok: true,
+        json: async () => ({ clientSecret: 'secret', paymentIntentId: 'pi_123' }),
+      }))
       .mockImplementationOnce(async () => ({
         ok: true,
         json: async () => ({ transferGroup: 'booking-id' }),
@@ -62,34 +56,59 @@ describe('useInitiateBooking', () => {
 
     const { result } = renderHook(() => useInitiateBooking(), { wrapper });
 
-    let bookingPromise: Promise<{ clientSecret: string; paymentIntentId: string }> | undefined;
+    let bookingResult: { clientSecret: string; paymentIntentId: string } | undefined;
 
     await act(async () => {
-      bookingPromise = result.current.mutateAsync({
+      bookingResult = await result.current.mutateAsync({
         slotId: 'slot-123',
         customerEmail: 'user@example.com',
       });
     });
 
-    expect(fetchMock).toHaveBeenCalledWith('https://functions.test/create-payment-intent', expect.any(Object));
-    expect(mutateAsyncMock).not.toHaveBeenCalled();
-
-    expect(resolveCreatePaymentIntent).toBeDefined();
-
-    await act(async () => {
-      resolveCreatePaymentIntent!({
-        ok: true,
-        json: async () => ({ clientSecret: 'secret', paymentIntentId: 'pi_123' }),
-      });
-      const resolved = await bookingPromise!;
-      expect(resolved).toEqual({ clientSecret: 'secret', paymentIntentId: 'pi_123' });
-    });
-
+    expect(bookingResult).toEqual({ clientSecret: 'secret', paymentIntentId: 'pi_123' });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://functions.test/create-payment-intent',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
     expect(mutateAsyncMock).toHaveBeenCalledWith({ slotId: 'slot-123', paymentIntentId: 'pi_123' });
     expect(fetchMock).toHaveBeenLastCalledWith(
       'https://functions.test/attach-booking-transfer',
-      expect.objectContaining({ method: 'POST' }),
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }),
     );
+
+    queryClient.clear();
+  });
+
+  it('handles errors when creating payment intent fails', async () => {
+    fetchMock.mockImplementationOnce(async () => ({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: 'Failed to create payment intent' }),
+    }));
+
+    const queryClient = new QueryClient();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => useInitiateBooking(), { wrapper });
+
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({
+          slotId: 'slot-123',
+          customerEmail: 'user@example.com',
+        }),
+      ).rejects.toThrow();
+    });
+
+    expect(mutateAsyncMock).not.toHaveBeenCalled();
 
     queryClient.clear();
   });

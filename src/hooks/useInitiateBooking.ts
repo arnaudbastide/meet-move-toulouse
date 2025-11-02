@@ -1,11 +1,18 @@
 import { useMutation } from '@tanstack/react-query';
 import { loadStripe } from '@stripe/stripe-js';
+import { useBookSlot } from './useBookSlot';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
-const initiateBooking = async ({ slotId, customerEmail }: { slotId: string; customerEmail: string; }) => {
+const initiateBooking = async ({
+  slotId,
+  customerEmail,
+}: {
+  slotId: string;
+  customerEmail: string;
+}) => {
   const functionsUrl = import.meta.env.VITE_FUNCTIONS_URL;
-  const res = await fetch(`${functionsUrl}/create-payment-intent`, {
+  const response = await fetch(`${functionsUrl}/create-payment-intent`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -13,11 +20,14 @@ const initiateBooking = async ({ slotId, customerEmail }: { slotId: string; cust
     body: JSON.stringify({ slotId, customerEmail }),
   });
 
-  if (!res.ok) {
+  if (!response.ok) {
     throw new Error('Failed to create payment intent');
   }
 
-  const { clientSecret, paymentIntentId } = await res.json();
+  const { clientSecret, paymentIntentId } = (await response.json()) as {
+    clientSecret: string;
+    paymentIntentId: string;
+  };
 
   const stripe = await stripePromise;
   if (!stripe) {
@@ -28,17 +38,39 @@ const initiateBooking = async ({ slotId, customerEmail }: { slotId: string; cust
 };
 
 export const useInitiateBooking = () => {
+  const bookSlot = useBookSlot();
+
   return useMutation({
-    mutationFn: initiateBooking,
-    onSuccess: async ({ stripe, clientSecret, paymentIntentId }) => {
-      // Here you would typically redirect to a checkout page
-      // or use stripe.confirmCardPayment(clientSecret, ...)
-      console.log('Payment intent created:', paymentIntentId);
-      alert('Redirecting to payment...');
-    },
-    onError: (error) => {
-      console.error(error);
-      alert('Booking failed!');
+    mutationFn: async ({ slotId, customerEmail }: { slotId: string; customerEmail: string }) => {
+      // 1) Create payment intent
+      const { stripe, clientSecret, paymentIntentId } = await initiateBooking({
+        slotId,
+        customerEmail,
+      });
+
+      // 2) Create booking via RPC (stores payment intent)
+      const bookingId = await bookSlot.mutateAsync({
+        slotId,
+        paymentIntentId,
+      });
+
+      // 3) Attach booking to payment intent transfer group
+      const functionsUrl = import.meta.env.VITE_FUNCTIONS_URL;
+      const attachResponse = await fetch(`${functionsUrl}/attach-booking-transfer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ bookingId, paymentIntentId }),
+      });
+
+      if (!attachResponse.ok) {
+        const errorData = await attachResponse.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to attach booking transfer');
+      }
+
+      // 4) Return client secret and payment intent ID for payment dialog
+      return { clientSecret, paymentIntentId };
     },
   });
 };
