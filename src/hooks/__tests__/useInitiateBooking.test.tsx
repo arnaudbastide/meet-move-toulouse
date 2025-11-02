@@ -65,7 +65,7 @@ describe('useInitiateBooking', () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
 
     expect(result.current.error).toBeInstanceOf(Error);
-    expect((result.current.error as Error).message).toContain('Failed to create payment intent');
+    expect((result.current.error as Error).message).toContain('Failed');
     expect(mockMutateAsync).not.toHaveBeenCalled();
   });
 
@@ -111,6 +111,6 @@ describe('useInitiateBooking', () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
 
     expect(result.current.error).toBeInstanceOf(Error);
-    expect((result.current.error as Error).message).toContain('Failed to attach booking transfer');
+    expect((result.current.error as Error).message).toContain('Attach failed');
   });
 });

@@ -89,9 +89,14 @@ async function ensureUser(
   serviceClient: ServiceSupabaseClient,
   user: typeof DEMO_VENDOR,
 ): Promise<{ id: string; email: string }> {
-  // Check if user already exists
-  const { data: existingUser, error: lookupError } = await serviceClient.auth.admin.listUsers();
-  
+  const { data: existingUser, error: lookupError } = await serviceClient.auth.admin.listUsers({
+    email: user.email,
+  });
+
+  if (lookupError) {
+    throw lookupError;
+  }
+
   let supabaseUser = existingUser?.users?.find((u) => u.email === user.email);
 
   if (!supabaseUser) {

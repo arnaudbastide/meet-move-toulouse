@@ -7,7 +7,7 @@ import { formatPrice } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Link } from 'react-router-dom';
-import { VendorEventWithStats, VendorDashboardTotals } from '@/lib/types';
+import { VendorAccount, VendorEventWithStats, VendorDashboardTotals } from '@/lib/types';
 
 const fetchVendorTotals = async (vendorId: string): Promise<VendorDashboardTotals> => {
   // Get event IDs for this vendor
@@ -41,7 +41,15 @@ const fetchVendorTotals = async (vendorId: string): Promise<VendorDashboardTotal
     throw new Error(slotsError.message);
   }
 
-  const slotIds = slots?.map(s => s.id) ?? [];
+  const slotIds = slots?.map((s) => s.id) ?? [];
+
+  if (slotIds.length === 0) {
+    return {
+      bookingsCount: 0,
+      totalRevenue: 0,
+      eventsCount,
+    };
+  }
 
   // Get bookings for these slots
   const { data: bookingsData, error: bookingsErr } = await supabase
@@ -77,22 +85,32 @@ const fetchVendorEventsWithStats = async (vendorId: string): Promise<VendorEvent
 
   const eventsWithStats = await Promise.all(
     (events || []).map(async (event) => {
-      // Get slots count
       const { data: slots, error: slotsError } = await supabase
         .from('event_slots')
         .select('id')
         .eq('event_id', event.id);
 
+      if (slotsError) {
+        throw new Error(slotsError.message);
+      }
+
       const slots_count = slots?.length ?? 0;
 
-      // Get revenue for this event
       const { data: bookingsData, error: bookingsErr } = await supabase
         .from('bookings')
         .select('net_payout_cents, slot_id, event_slots!inner(event_id)')
         .eq('status', 'booked')
         .eq('event_slots.event_id', event.id);
 
-      const revenue = bookingsData?.reduce((sum, b) => sum + (b.net_payout_cents ?? 0), 0) ?? 0;
+      if (bookingsErr) {
+        throw new Error(bookingsErr.message);
+      }
+
+      const revenue =
+        bookingsData?.reduce(
+          (sum, booking) => sum + (booking.net_payout_cents ?? 0),
+          0
+        ) ?? 0;
 
       return {
         id: event.id,
@@ -111,14 +129,18 @@ const fetchVendorEventsWithStats = async (vendorId: string): Promise<VendorEvent
   return eventsWithStats;
 };
 
-const fetchVendorAccount = async (profileId: string) => {
+const fetchVendorAccount = async (profileId: string): Promise<VendorAccount | null> => {
   const { data, error } = await supabase
     .from('vendor_accounts')
     .select('*')
     .eq('profile_id', profileId)
     .maybeSingle();
 
-  return data;
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data as VendorAccount) ?? null;
 };
 
 const VendorDashboardRoute = () => {

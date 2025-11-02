@@ -1,25 +1,33 @@
 # Meet & Move Toulouse
 
-A full-stack event booking platform connecting people in Toulouse. Built with React, TypeScript, Supabase, and Stripe.
+Plateforme de réservation d'événements pour Toulouse avec tableau vendeur, paiements Stripe Connect et expérience localisée en français.
+
+## Fonctionnalités
+
+- Navigation conditionnelle selon le rôle (visiteur, utilisateur, vendeur)
+- Tableau vendeur avec revenus, réservations et statut d'onboarding Stripe
+- Création d'événements avec créneaux multiples, géolocalisation et capacité
+- Réservations côté utilisateur avec paiement Stripe et annulation < 24h
+- Scripts d'ensemencement Supabase pour jeux de données réalistes
+- Tests unitaires (Vitest) et end-to-end (Playwright)
 
 ## Tech Stack
 
-- **Frontend**: React 18 + TypeScript + Vite
-- **UI**: shadcn/ui + Tailwind CSS
-- **State Management**: TanStack Query (React Query)
-- **Backend**: Supabase (PostgreSQL + Auth + RLS)
-- **Payments**: Stripe Connect
-- **Forms**: React Hook Form + Zod
-- **Testing**: Vitest (unit) + Playwright (E2E)
-- **Functions**: Express.js (Supabase Edge Functions)
+- **Frontend** : React 18, Vite, TypeScript, shadcn/ui, Tailwind CSS
+- **State** : TanStack Query
+- **Backend** : Supabase (Postgres + Auth + RLS)
+- **Payments** : Stripe Connect + Stripe Elements
+- **Forms** : React Hook Form + Zod
+- **Tests** : Vitest + Playwright
+- **Fonctions** : Express.js (Supabase Edge Functions)
 
-## Prerequisites
+## Prérequis
 
-- **Node.js**: 18+ or 20+ (recommended)
-- **npm**: 9+ or 10+
-- **Supabase CLI**: Latest version
-- **Stripe CLI**: Latest version (for local webhook forwarding)
-- **Docker**: Required for local Supabase instance
+- Node.js 18 LTS ou 20 LTS
+- pnpm 8+
+- Supabase CLI (pour lancer l'instance locale)
+- Stripe CLI (pour relayer les webhooks en local)
+- Docker (nécessaire pour Supabase local)
 
 ## Installation
 
@@ -31,173 +39,170 @@ A full-stack event booking platform connecting people in Toulouse. Built with Re
 
 2. **Install dependencies**
    ```bash
-   npm install
+   pnpm install
    ```
 
-3. **Set up environment variables**
-   
-   Create `.env` in the root directory:
-   ```env
-   VITE_SUPABASE_URL=your_supabase_url
-   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-   VITE_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
-   VITE_FUNCTIONS_URL=http://localhost:8787
-   ```
+## Configuration des variables d'environnement
 
-   Create `.env.server` in the root directory (for functions and seed scripts):
-   ```env
-   SUPABASE_URL=your_supabase_url
-   SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-   STRIPE_SECRET_KEY=your_stripe_secret_key
-   STRIPE_WEBHOOK_SECRET=your_webhook_secret
-   PORT=8787
-   ```
+### Frontend (`.env`)
 
-## Supabase Setup
+Créez un fichier `.env` à la racine avec :
 
-1. **Start local Supabase**
+```env
+VITE_SUPABASE_URL=https://<your-project>.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=public-anon-key
+VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...
+VITE_FUNCTIONS_URL=http://localhost:8787
+```
+
+Vous pouvez également ajouter `VITE_SUPABASE_ANON_KEY` si vous souhaitez garder l'ancien nommage ; les deux sont pris en charge.
+
+### Fonctions + scripts (`supabase/functions/.env`)
+
+```env
+SUPABASE_URL=https://<your-project>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=service-role-key
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+PORT=8787
+```
+
+Les scripts Node (ex. `pnpm seed`) consomment aussi ces variables via `dotenv`.
+
+## Supabase
+
+1. **Lancer Supabase en local**
    ```bash
    supabase start
    ```
+   Vous obtiendrez l'URL, la clé anonyme et la clé service role.
 
-   This will:
-   - Start a local PostgreSQL database
-   - Start the Supabase API
-   - Print your local credentials
-
-2. **Run migrations**
+2. **Appliquer les migrations**
    ```bash
    supabase db reset
    ```
+   Cette commande nettoie et applique toutes les migrations présentes dans `supabase/migrations/`.
 
-   This applies all migrations in `supabase/migrations/`.
+3. **Projet Supabase Cloud**
+   - Créez un projet sur https://supabase.com pour l'environnement de prod
+   - Copiez l'URL et les clés dans vos fichiers `.env`
 
-3. **Create a project on Supabase Cloud** (for production)
-   - Go to https://supabase.com
-   - Create a new project
-   - Copy your project URL and API keys to `.env`
+## Stripe
 
-## Stripe Setup
+1. **Compte & clés**
+   - Créez un compte sur https://stripe.com
+   - Récupérez vos clés API (mode test pour le dev)
 
-1. **Create a Stripe account**
-   - Sign up at https://stripe.com
-   - Get your API keys from the Dashboard
+2. **Webhooks en local**
+   ```bash
+   stripe listen --forward-to http://localhost:8787/webhook
+   ```
+   Notez le `STRIPE_WEBHOOK_SECRET` fourni et ajoutez-le dans `supabase/functions/.env`.
 
-2. **Set up local webhook forwarding** (for development)
+3. **Cartes de test**
+   - Utilisez les cartes fournies par Stripe : https://stripe.com/docs/testing
+   - Le mode e2e active un `__STRIPE_TEST_MODE__` pour simuler la confirmation.
+
+## Lancer l'application
+
+1. (Optionnel) démarrez Supabase en local  
+   `supabase start`
+
+2. Lancez le serveur de fonctions (Express + Stripe helpers)  
+   ```bash
+   pnpm functions:dev
+   ```
+
+3. Dans un autre terminal, démarrez l'écoute Stripe  
    ```bash
    stripe listen --forward-to http://localhost:8787/webhook
    ```
 
-   This will:
-   - Forward Stripe webhooks to your local functions server
-   - Print a webhook signing secret (add to `.env.server`)
-
-3. **Test mode**
-   - Use test mode API keys for development
-   - Use test cards from https://stripe.com/docs/testing
-
-## Running the Application
-
-### Development
-
-1. **Start Supabase** (if using local instance)
+4. Lancez le front Vite sur `http://localhost:5173`  
    ```bash
-   supabase start
+   pnpm dev
    ```
 
-2. **Start the functions server**
-   ```bash
-   npm run functions:dev
-   ```
+### Autres commandes utiles
 
-   This starts the Express server at `http://localhost:8787`.
+- `pnpm build` : build production (`dist/`)
+- `pnpm preview` : prévisualiser le build
+- `pnpm lint` : ESLint
+- `pnpm seed` : exécuter le script d'ensemencement
 
-3. **Start Stripe webhook forwarding** (in another terminal)
-   ```bash
-   stripe listen --forward-to http://localhost:8787/webhook
-   ```
-
-4. **Start the frontend**
-   ```bash
-   npm run dev
-   ```
-
-   The app will be available at `http://localhost:5173`.
-
-### Building for Production
+## Données de démonstration
 
 ```bash
-npm run build
+pnpm seed
 ```
 
-This creates an optimized build in the `dist/` directory.
+Le script crée :
+- un vendeur démo (`vendor.demo@meet-move.local` / `ChangeMe123!`)
+- un utilisateur démo (`user.demo@meet-move.local` / `ChangeMe123!`)
+- cinq événements `[SEED]` avec 2 à 3 créneaux à venir
 
-### Preview Production Build
+Le script est idempotent : les anciens événements `[SEED]` sont purgés avant réinsertion et les comptes sont upsert.
+
+## Tests
+
+### Unit tests (Vitest)
 
 ```bash
-npm run preview
+pnpm test
 ```
 
-This serves the production build locally for testing.
-
-## Database Seeding
-
-Seed the database with demo users and events:
+### End-to-end (Playwright)
 
 ```bash
-npm run seed
+pnpm exec playwright install --with-deps chromium
+pnpm test:e2e
 ```
 
-This creates:
-- A demo vendor user (`vendor.demo@meet-move.local`)
-- A demo regular user (`user.demo@meet-move.local`)
-- 5 example events with 2-3 slots each
+Pré-requis :
+- Supabase et les fonctions doivent être en cours d'exécution
+- Stripe CLI doit relayer les webhooks (`stripe listen ...`)
+- Le flux Playwright active `window.__STRIPE_TEST_MODE__` pour simuler la confirmation de paiement
 
-**Note**: The seed script is idempotent. Running it multiple times will remove previous seed events and recreate them.
-
-## Testing
-
-### Unit Tests (Vitest)
+## Stripe CLI : simulations utiles
 
 ```bash
-npm test
+# Confirmer un paiement (met à jour bookings.status -> booked)
+stripe trigger payment_intent.succeeded
+
+# Simuler un échec de paiement (bookings.status -> cancelled)
+stripe trigger payment_intent.payment_failed
+
+# Mettre à jour le statut d'onboarding d'un compte vendeur
+stripe trigger account.updated
 ```
 
-Tests are located in `src/**/__tests__/` directories.
+Ces commandes nécessitent `stripe listen` en cours d'exécution et fonctionnent avec les clés de test.
 
-### E2E Tests (Playwright)
+## Déploiement
 
-```bash
-npm run test:e2e
-```
+### Frontend (Vercel, Netlify, etc.)
+- Construisez via `pnpm build`
+- Configurez les variables `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_STRIPE_PUBLISHABLE_KEY`, `VITE_FUNCTIONS_URL`
 
-Tests are located in `tests/` directory.
+### Fonctions Express (Fly.io, Render, Railway)
+- Déployez `supabase/functions/index.ts` via un service Node 18/20
+- Variables nécessaires : `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `PORT`
+- Configurez l'endpoint webhook Stripe vers `https://<votre-service>/webhook`
 
-**Note**: E2E tests require a running Supabase instance and may use mocked Stripe calls.
-
-## Deployment
-
-### Frontend (Vercel)
-
-1. Push your code to GitHub
-2. Import the project in Vercel
-3. Configure environment variables (VITE_* prefixed)
-4. Deploy
-
-### Functions (Render/Fly.io)
-
-1. Set up a Node.js service
-2. Set environment variables (without VITE_ prefix)
-3. Point to your Supabase project
-4. Configure Stripe webhook endpoint
-
-### Database Migrations
-
-Run migrations on production:
+### Base de données
 
 ```bash
 supabase db push
 ```
+
+Pousse les migrations vers votre instance distante.
+
+## CI/CD
+
+Le workflow GitHub Actions (`.github/workflows/ci.yml`) :
+- installe les dépendances via pnpm avec cache
+- exécute lint (`pnpm lint`), type-check (`pnpm exec tsc -b`) et tests unitaires (`pnpm test`)
+- lance les tests end-to-end (`pnpm test:e2e`) uniquement sur la branche `main`
 
 Or use the Supabase Dashboard to run SQL migrations.
 

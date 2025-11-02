@@ -1,15 +1,14 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { Event, EventSlot } from '@/lib/types';
-import SlotPicker from '@/components/SlotPicker';
-import { Button } from '@/components/ui/button';
-import { useAuth } from '@/contexts/AuthContext';
-import { useInitiateBooking } from '@/hooks/useInitiateBooking';
-import PaymentDialog from '@/components/PaymentDialog';
-import { formatPrice } from '@/lib/utils';
-import { toast } from 'sonner';
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate, useParams } from "react-router-dom";
+import { toast } from "sonner";
+import SlotPicker from "@/components/SlotPicker";
+import PaymentDialog from "@/components/PaymentDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useInitiateBooking } from "@/hooks/useInitiateBooking";
+import { supabase } from "@/integrations/supabase/client";
+import { Event, EventSlot } from "@/lib/types";
+import { formatPrice } from "@/lib/utils";
 
 const fetchEvent = async (id: string): Promise<Event | null> => {
   const { data, error } = await supabase
@@ -49,7 +48,6 @@ const EventDetailRoute = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const { mutate: initiateBooking, isPending: isBookingPending } = useInitiateBooking();
@@ -68,41 +66,44 @@ const EventDetailRoute = () => {
 
   const handleBookSlot = (slotId: string) => {
     if (!user) {
-      toast.error('Vous devez être connecté pour réserver.');
-      navigate('/auth');
+      toast.error("Vous devez être connecté pour réserver.");
+      navigate("/auth");
       return;
     }
 
     if (!event) {
-      toast.error('Événement introuvable.');
+      toast.error("Événement introuvable.");
       return;
     }
 
-    setSelectedSlotId(slotId);
-    
     initiateBooking(
       { slotId, customerEmail: user.email! },
       {
-        onSuccess: async (result) => {
-          // result contains clientSecret and paymentIntentId from the mutation
+        onSuccess: (result) => {
           if (result?.clientSecret) {
             setClientSecret(result.clientSecret);
             setPaymentDialogOpen(true);
+            return;
           }
+
+          toast.error(
+            "La réponse Stripe est incomplète. Merci de réessayer dans un instant.",
+          );
         },
         onError: (error) => {
-          toast.error(error.message || 'Erreur lors de l\'initiation de la réservation.');
+          toast.error(
+            error.message || "Erreur lors de l'initiation de la réservation.",
+          );
         },
       }
     );
   };
 
   const handlePaymentSuccess = () => {
-    toast.success('Réservation confirmée !');
+    toast.success("Réservation confirmée !");
     setPaymentDialogOpen(false);
     setClientSecret(null);
-    setSelectedSlotId(null);
-    navigate('/bookings');
+    navigate("/bookings");
   };
 
   if (isLoadingEvent || isLoadingSlots) {
@@ -129,24 +130,48 @@ const EventDetailRoute = () => {
     );
   }
 
-  const organizerName = event?.profiles?.full_name ?? event?.organizer_name ?? 'Organisateur communautaire';
+  const organizerName = event?.profiles?.full_name ?? event?.organizer_name ?? "Organisateur communautaire";
+  const totalSlots = slots?.length ?? 0;
+  const availableSlots = (slots ?? []).filter(
+    (slot) => event.max_places > slot.booked_places,
+  ).length;
+  const totalAvailablePlaces = (slots ?? []).reduce((acc, slot) => {
+    const remaining = event.max_places - slot.booked_places;
+    return acc + (remaining > 0 ? remaining : 0);
+  }, 0);
 
   return (
     <>
       <div className="container mx-auto p-4">
         <div className="grid md:grid-cols-2 gap-8">
           <div>
-            <img 
-              src={event.image_url || '/placeholder.svg'} 
-              alt={event.title} 
-              className="rounded-md mb-4 w-full h-64 object-cover" 
+            <img
+              src={event.image_url || "/placeholder.svg"}
+              alt={event.title}
+              className="rounded-md mb-4 w-full h-64 object-cover"
             />
             <h1 className="text-3xl font-bold">{event.title}</h1>
             <p className="text-muted-foreground my-2">par {organizerName}</p>
             <p className="text-lg mb-4">{event.description}</p>
             <div className="space-y-2 mb-4">
-              <p className="font-semibold">Prix: {formatPrice(event.price_cents)}</p>
+              <p className="font-semibold">
+                Prix&nbsp;: {formatPrice(event.price_cents)}
+              </p>
               <p className="text-muted-foreground">{event.address}</p>
+              <div className="flex flex-wrap gap-4 text-sm text-muted-foreground pt-2">
+                <span>
+                  {totalSlots} créneau{totalSlots > 1 ? "x" : ""} programmé
+                  {totalSlots > 1 ? "s" : ""}
+                </span>
+                <span>
+                  {availableSlots} créneau{availableSlots > 1 ? "x" : ""} encore
+                  disponible{availableSlots > 1 ? "s" : ""}
+                </span>
+                <span>
+                  {totalAvailablePlaces} place
+                  {totalAvailablePlaces > 1 ? "s" : ""} restantes au total
+                </span>
+              </div>
             </div>
           </div>
           <div>

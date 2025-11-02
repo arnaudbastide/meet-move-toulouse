@@ -1,7 +1,13 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Elements } from '@stripe/react-stripe-js';
-import { loadStripe, Stripe } from '@stripe/stripe-js';
-import CheckoutForm from './CheckoutForm'; // This component will contain the payment form
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Elements } from "@stripe/react-stripe-js";
+import { loadStripe } from "@stripe/stripe-js";
+import CheckoutForm from "./CheckoutForm";
 
 interface PaymentDialogProps {
   open: boolean;
@@ -13,22 +19,45 @@ interface PaymentDialogProps {
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
-const PaymentDialog = ({ open, onClose, clientSecret, onSuccess, amountLabel }: PaymentDialogProps) => {
-  if (!clientSecret) return null;
+const PaymentDialog = ({
+  open,
+  onClose,
+  clientSecret,
+  onSuccess,
+  amountLabel,
+}: PaymentDialogProps) => {
+  if (!clientSecret) {
+    return null;
+  }
 
-  const options = { clientSecret };
+  const options = {
+    clientSecret,
+    appearance: {
+      theme: "flat",
+      variables: {
+        fontFamily: "Inter, sans-serif",
+      },
+    },
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          onClose();
+        }
+      }}
+    >
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Finaliser la réservation</DialogTitle>
           <DialogDescription>
-            Montant à payer: {amountLabel}
+            Montant à payer&nbsp;: {amountLabel}
           </DialogDescription>
         </DialogHeader>
         <Elements stripe={stripePromise} options={options}>
-          <CheckoutForm onSuccess={onSuccess} />
+          <CheckoutForm onSuccess={onSuccess} onCancel={onClose} />
         </Elements>
       </DialogContent>
     </Dialog>

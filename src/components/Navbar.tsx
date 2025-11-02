@@ -7,6 +7,7 @@ const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAuthenticated, signOut, profile } = useAuth();
+  const isVendor = profile?.role_id === 1;
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -47,7 +48,7 @@ const Navbar = () => {
                 Mes réservations
               </Link>
             )}
-            {profile?.role_id === 1 && (
+            {isVendor && (
               <>
                 <Link
                   to="/vendor-dashboard"
@@ -58,7 +59,7 @@ const Navbar = () => {
                   }`}
                 >
                   <LayoutDashboard className="h-4 w-4" />
-                  Tableau de bord
+                  Tableau vendor
                 </Link>
                 <Link
                   to="/create"
@@ -71,14 +72,14 @@ const Navbar = () => {
                 </Link>
               </>
             )}
-            {profile?.role_id !== 1 && isAuthenticated && (
+            {!isVendor && (
               <Link
                 to="/auth"
                 className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary ${
                   isActive("/auth") ? "text-primary" : "text-muted-foreground"
                 }`}
               >
-                Devenir vendeur
+                Devenir vendor
               </Link>
             )}
           </div>

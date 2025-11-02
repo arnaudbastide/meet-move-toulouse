@@ -1,3 +1,5 @@
+export type BookingStatus = "booked" | "cancelled" | "checked_in";
+
 export interface Event {
   id: string;
   vendor_id: string;
@@ -5,14 +7,15 @@ export interface Event {
   description: string;
   category: string;
   price_cents: number;
-  currency: string;
+  currency?: string | null;
   max_places: number;
-  geom: any;
   address: string;
+  lat?: number | null;
+  lng?: number | null;
+  image_url?: string | null;
   created_at: string;
-  status?: string;
+  status?: string | null;
   organizer_name?: string | null;
-  organizer_initials?: string | null;
   profiles?: {
     full_name?: string | null;
     avatar_url?: string | null;
@@ -25,13 +28,14 @@ export interface EventSlot {
   start_at: string;
   end_at: string;
   booked_places: number;
+  capacity?: number | null;
 }
 
 export interface Booking {
   id: string;
   user_id: string;
   slot_id: string;
-  status: 'booked' | 'cancelled' | 'checked_in';
+  status: BookingStatus;
   price_cents: number;
   platform_fee_cents: number;
   net_payout_cents: number;
@@ -40,6 +44,12 @@ export interface Booking {
   event_slots?: EventSlot & {
     events?: Event;
   };
+}
+
+export interface VendorAccount {
+  profile_id: string;
+  stripe_account_id: string | null;
+  onboarding_complete: boolean;
 }
 
 export interface VendorDashboardTotals {

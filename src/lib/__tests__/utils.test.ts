@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { formatPrice, getFunctionsBaseUrl } from '../utils';
+import { formatDateTime, formatPrice, getFunctionsBaseUrl } from '../utils';
 
 describe('formatPrice', () => {
   it('should format price in euros correctly', () => {
@@ -25,8 +25,6 @@ describe('formatPrice', () => {
 });
 
 describe('getFunctionsBaseUrl', () => {
-  const originalEnv = import.meta.env;
-
   beforeEach(() => {
     vi.stubEnv('VITE_FUNCTIONS_URL', '');
   });
@@ -53,6 +51,23 @@ describe('getFunctionsBaseUrl', () => {
   it('should handle URLs with multiple trailing slashes', () => {
     vi.stubEnv('VITE_FUNCTIONS_URL', 'https://api.example.com///');
     expect(getFunctionsBaseUrl()).toBe('https://api.example.com');
+  });
+});
+
+describe('formatDateTime', () => {
+  it('returns an empty string for falsy values', () => {
+    expect(formatDateTime(undefined)).toBe('');
+    expect(formatDateTime(null)).toBe('');
+  });
+
+  it('formats ISO strings in French locale', () => {
+    const formatted = formatDateTime('2024-05-20T14:30:00Z');
+    expect(formatted).toMatch(/20 mai 2024/);
+  });
+
+  it('respects Date instances', () => {
+    const date = new Date('2024-05-20T14:30:00Z');
+    expect(formatDateTime(date)).toEqual(formatDateTime(date.toISOString()));
   });
 });
 

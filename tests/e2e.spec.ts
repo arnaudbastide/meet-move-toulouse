@@ -6,15 +6,19 @@ test.describe('Vendor Flow', () => {
     await page.goto('/auth');
 
     // Switch to sign up mode
-    await page.getByText('Need an account? Sign up').click();
+    await page.getByRole('tab', { name: /Sign Up/i }).click();
+
+    const signupForm = page.locator('[data-state="active"]').locator('form');
 
     // Fill signup form as vendor
-    await page.fill('input[type="email"]', 'vendor@test.com');
-    await page.fill('input[type="password"]', 'TestPassword123!');
-    await page.click('input[id="vendor"]');
+    await signupForm.locator('input[name="name"]').fill('Vendor Test');
+    await signupForm.locator('input[name="email"]').fill('vendor@test.com');
+    await signupForm.locator('input[name="password"]').fill('TestPassword123!');
+    await signupForm.locator('input[name="confirm"]').fill('TestPassword123!');
+    await signupForm.getByLabel('Create events (Vendor)').click();
 
     // Submit signup
-    await page.getByRole('button', { name: /Sign Up/i }).click();
+    await signupForm.getByRole('button', { name: /Create Account/i }).click();
 
     // Wait for redirect or success message
     await expect(page).toHaveURL(/\/vendor-dashboard|\/\?/, { timeout: 10000 });
@@ -30,32 +34,28 @@ test.describe('Vendor Flow', () => {
     // Fill event form
     await page.fill('input[name="title"]', 'Test Event');
     await page.fill('textarea[name="description"]', 'This is a test event');
-    
-    // Select category if there's a select dropdown
-    const categorySelect = page.locator('select').first();
-    if (await categorySelect.count() > 0) {
-      await categorySelect.selectOption('sport');
-    }
+
+    // Select category via shadcn select
+    const categoryTrigger = page.locator('[role="combobox"]').first();
+    await categoryTrigger.click();
+    await page.getByRole('option', { name: /Sport/i }).click();
 
     // Fill price (in cents)
-    await page.fill('input[type="number"]:near(:text("Prix"))', '1500');
-    
+    await page.fill('input[name="price_cents"]', '1500');
+
     // Fill max places
-    const maxPlacesInput = page.locator('input[type="number"]').filter({ hasText: /places/i }).or(page.locator('input[name*="max"]'));
-    if (await maxPlacesInput.count() > 0) {
-      await maxPlacesInput.first().fill('10');
-    }
+    await page.fill('input[name="max_places"]', '10');
 
     // Fill address
-    await page.fill('input[name*="address"]', 'Toulouse - Test Location');
+    await page.fill('input[name="address"]', 'Toulouse - Test Location');
 
     // Fill lat/lng
     await page.fill('input[name="lat"]', '43.6047');
     await page.fill('input[name="lng"]', '1.4442');
 
     // Add a slot (start and end times)
-    const startInput = page.locator('input[type="datetime-local"]').first();
-    const endInput = page.locator('input[type="datetime-local"]').last();
+    const startInput = page.locator('input[name="slots.0.start_at"]');
+    const endInput = page.locator('input[name="slots.0.end_at"]');
     
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -99,23 +99,22 @@ test.describe('User Flow', () => {
     await page.goto('/auth');
 
     // Switch to sign up mode
-    await page.getByText(/Need an account|Sign up/i).click();
+    await page.getByRole('tab', { name: /Sign Up/i }).click();
+
+    const signupForm = page.locator('[data-state="active"]').locator('form');
 
     // Fill signup form as user
-    await page.fill('input[type="email"]', 'user@test.com');
-    await page.fill('input[type="password"]', 'TestPassword123!');
-    
-    // Select user role (if radio button exists)
-    const userRadio = page.locator('input[id="user"]');
-    if (await userRadio.count() > 0) {
-      await userRadio.click();
-    }
+    await signupForm.locator('input[name="name"]').fill('User Test');
+    await signupForm.locator('input[name="email"]').fill('user@test.com');
+    await signupForm.locator('input[name="password"]').fill('TestPassword123!');
+    await signupForm.locator('input[name="confirm"]').fill('TestPassword123!');
+    await signupForm.getByLabel('Book events (User)').click();
 
     // Submit signup
-    await page.getByRole('button', { name: /Sign Up/i }).click();
+    await signupForm.getByRole('button', { name: /Create Account/i }).click();
 
     // Wait for redirect
-    await expect(page).toHaveURL(/\/(bookings|\?)/, { timeout: 10000 });
+    await expect(page).toHaveURL(/\/events/, { timeout: 10000 });
 
     // Navigate to home to browse events
     await page.goto('/');
