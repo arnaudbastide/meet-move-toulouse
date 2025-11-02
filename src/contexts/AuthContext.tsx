@@ -1,77 +1,57 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import type { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-interface AuthContextType {
-  session: Session | null;
-  user: User | null;
-  profile: any;
-  loading: boolean;
-}
+type AuthContextValue = {
+  isAuthenticated: boolean;
+  signIn: () => void;
+  signOut: () => void;
+};
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+const STORAGE_KEY = "meet-move:isAuthenticated";
 
-  useEffect(() => {
-    const getSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      setLoading(false);
-    };
-
-    getSession();
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-      },
-    );
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (user) {
-      setLoading(true);
-      const getProfile = async () => {
-        const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-        setProfile(data);
-        setLoading(false);
-      };
-      getProfile();
-    } else {
-      setProfile(null);
+export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    if (typeof window === "undefined") {
+      return false;
     }
-  }, [user]);
 
-  const value = {
-    session,
-    user,
-    profile,
-    loading,
-  };
+    try {
+      const storedValue = window.localStorage.getItem(STORAGE_KEY);
+      return storedValue === "true";
+    } catch (error) {
+      console.error("Failed to read auth state from storage", error);
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, String(isAuthenticated));
+    } catch (error) {
+      console.error("Failed to persist auth state", error);
+    }
+  }, [isAuthenticated]);
+
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      isAuthenticated,
+      signIn: () => setIsAuthenticated(true),
+      signOut: () => setIsAuthenticated(false),
+    }),
+    [isAuthenticated],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
   }
+
   return context;
 };
