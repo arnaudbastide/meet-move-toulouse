@@ -33,7 +33,7 @@ const PaymentDialog = ({
   const options = {
     clientSecret,
     appearance: {
-      theme: "flat",
+      theme: "flat" as const,
       variables: {
         fontFamily: "Inter, sans-serif",
       },

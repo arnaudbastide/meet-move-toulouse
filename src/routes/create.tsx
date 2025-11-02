@@ -65,11 +65,11 @@ const createEvent = async (values: z.infer<typeof eventSchema>) => {
 
   const { data, error } = await supabase.rpc('create_event_with_slots', {
     p_title: values.title,
-    p_desc: values.description,
-    p_cat: values.category,
+    p_description: values.description,
+    p_category: values.category,
     p_price_cents: Math.round(values.price_cents),
-    p_max: values.max_places,
-    p_addr: values.address,
+    p_max_places: values.max_places,
+    p_address: values.address,
     p_lat: values.lat,
     p_lng: values.lng,
     p_slots: slotsJson,

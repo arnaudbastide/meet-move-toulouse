@@ -10,12 +10,13 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-interface BookingWithDetails extends Booking {
+interface BookingWithDetails extends Omit<Booking, 'event_slots'> {
   event_slots: {
     id: string;
     start_at: string;
     end_at: string;
     event_id: string;
+    booked_places: number;
     events: {
       id: string;
       title: string;
