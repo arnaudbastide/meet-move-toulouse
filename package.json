@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "functions:dev": "tsx supabase/functions/index.ts",
     "seed": "tsx scripts/seed.ts",
