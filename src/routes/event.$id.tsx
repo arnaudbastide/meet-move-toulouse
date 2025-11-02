@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { Event, EventSlot } from '@/lib/types';
 import SlotPicker from '@/components/SlotPicker';
 import { Button } from '@/components/ui/button';

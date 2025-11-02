@@ -1,7 +1,7 @@
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -22,9 +22,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useMutation } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/contexts/AuthContext';
 
 const eventSchema = z.object({
   title: z.string().min(1, 'Le titre est requis'),
@@ -83,6 +84,7 @@ const createEvent = async (values: z.infer<typeof eventSchema>) => {
 
 const CreateRoute = () => {
   const navigate = useNavigate();
+  const { profile, loading: authLoading } = useAuth();
   const form = useForm<z.infer<typeof eventSchema>>({
     resolver: zodResolver(eventSchema),
     defaultValues: {
@@ -117,6 +119,30 @@ const CreateRoute = () => {
   const onSubmit = (values: z.infer<typeof eventSchema>) => {
     createEventMutation(values);
   };
+
+  // Soft route guard: show friendly message if not vendor
+  if (!authLoading && (!profile || profile.role_id !== 1)) {
+    return (
+      <div className="container mx-auto p-4 max-w-md">
+        <Card>
+          <CardHeader>
+            <CardTitle>Accès restreint</CardTitle>
+            <CardDescription>
+              Cette page est réservée aux vendeurs. Devenez vendeur pour créer des événements.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Link to="/auth">
+              <Button className="w-full">Devenir vendeur</Button>
+            </Link>
+            <Link to="/">
+              <Button variant="outline" className="w-full">Retour à l'accueil</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-4 max-w-2xl">

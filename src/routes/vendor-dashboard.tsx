@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { useStripeOnboarding } from '@/hooks/useStripeOnboarding';
@@ -122,7 +122,7 @@ const fetchVendorAccount = async (profileId: string) => {
 };
 
 const VendorDashboardRoute = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const { mutate: initiateOnboarding, isPending: isOnboardingPending } = useStripeOnboarding();
 
   const { data: totals, isLoading: isLoadingTotals } = useQuery({
@@ -156,6 +156,30 @@ const VendorDashboardRoute = () => {
       });
     }
   };
+
+  // Soft route guard: show friendly message if not vendor
+  if (!authLoading && (!profile || profile.role_id !== 1)) {
+    return (
+      <div className="container mx-auto p-4 max-w-md">
+        <Card>
+          <CardHeader>
+            <CardTitle>Accès restreint</CardTitle>
+            <CardDescription>
+              Cette page est réservée aux vendeurs. Devenez vendeur pour accéder au tableau de bord.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button asChild className="w-full">
+              <Link to="/auth">Devenir vendeur</Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full">
+              <Link to="/">Retour à l'accueil</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isLoadingTotals || isLoadingEvents || isLoadingAccount) {
     return (
