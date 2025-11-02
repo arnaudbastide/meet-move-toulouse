@@ -42,16 +42,9 @@ export function formatDateTime(value: string | Date | null | undefined) {
 }
 
 /**
- * Resolve the base URL for Supabase Edge Functions with a sane default.
+ * Resolve the base URL for Supabase Edge Functions.
  */
 export function getFunctionsBaseUrl() {
-  const configuredUrl = import.meta.env.VITE_FUNCTIONS_URL;
-
-  const trimmed = (configuredUrl ?? "").trim().replace(/\/+$/, "");
-
-  if (trimmed.length === 0) {
-    return "http://localhost:8787";
-  }
-
-  return trimmed;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  return `${supabaseUrl}/functions/v1`;
 }

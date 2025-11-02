@@ -1,1 +1,13 @@
 project_id = "xvgydgdxcfxawndvjayu"
+
+[functions.create-payment-intent]
+verify_jwt = true
+
+[functions.attach-booking-transfer]
+verify_jwt = true
+
+[functions.create-account-link]
+verify_jwt = true
+
+[functions.stripe-webhook]
+verify_jwt = false
